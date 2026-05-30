@@ -1,15 +1,15 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import logo from "../assets/logo.png";
-// import { GoogleLogin } from "@react-oauth/google";
-
 
 const Register = () => {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     password: "",
+    birthdate: "",
   });
+  const [message, setMessage] = useState("");
 
   const handleChange = (e) => {
     setFormData({
@@ -18,30 +18,42 @@ const Register = () => {
     });
   };
 
-const handleSubmit = (e) => {
-  e.preventDefault();
-  console.log(formData);
- 
-};
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setMessage(""); 
 
-const handleSuccess = (credentialResponse) => {
-    console.log("Google Token:", credentialResponse.credential);
-  };
+    try {
+      const response = await fetch("http://localhost:5000/api/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
+      });
 
-  const handleError = () => {
-    console.log("Login Failed");
+      const data = await response.json();
+
+      if (response.ok) {
+        setMessage("🟢 Success: " + data.message);
+        setFormData({ name: "", email: "", password: "", birthdate: "" });
+        e.target.reset(); 
+      } else {
+        setMessage("🔴 Error: " + data.error);
+      }
+    } catch (error) {
+      console.error("Registration connection error:", error);
+      setMessage("🔴 Could not connect to the backend server.");
+    }
   };
 
   return (
     <div className="relative min-h-screen flex items-center justify-center bg-gray-100 overflow-hidden">
 
- 
-     <div className="absolute w-72 h-72 bg-pink-300 rounded-full blur-3xl opacity-40 top-10 left-10"></div>
-         <div className="absolute w-72 h-72 bg-purple-300 rounded-full blur-3xl opacity-40 bottom-10 right-10"></div>
-             <div className="absolute w-72 h-72 bg-rose-300 rounded-full blur-3xl opacity-40 top-1/2 left-1/2"></div>
+      <div className="absolute w-72 h-72 bg-pink-300 rounded-full blur-3xl opacity-40 top-10 left-10"></div>
+      <div className="absolute w-72 h-72 bg-purple-300 rounded-full blur-3xl opacity-40 bottom-10 right-10"></div>
+      <div className="absolute w-72 h-72 bg-rose-300 rounded-full blur-3xl opacity-40 top-1/2 left-1/2"></div>
+      
       <div className="relative bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
-   
- 
 
         <div className="flex justify-center mb-6">
           <img src={logo} alt="TrackHer Logo" className="h-16" />
@@ -56,6 +68,7 @@ const handleSuccess = (credentialResponse) => {
           <input
             type="text"
             name="name"
+            value={formData.name}
             placeholder="Full Name"
             onChange={handleChange}
             required
@@ -65,6 +78,7 @@ const handleSuccess = (credentialResponse) => {
           <input
             type="email"
             name="email"
+            value={formData.email}
             placeholder="Email Address"
             onChange={handleChange}
             required
@@ -74,6 +88,7 @@ const handleSuccess = (credentialResponse) => {
           <input
             type="password"
             name="password"
+            value={formData.password}
             placeholder="Password"
             onChange={handleChange}
             required
@@ -83,6 +98,7 @@ const handleSuccess = (credentialResponse) => {
           <input
             type="date"
             name="birthdate"
+            value={formData.birthdate}
             placeholder="Birthday (YYYY/MM/DD)"
             onChange={handleChange}
             required
@@ -97,20 +113,22 @@ const handleSuccess = (credentialResponse) => {
           </button>
         </form>
        
+        {message && (
+          <p className="text-sm text-center font-medium mt-4 text-gray-700">
+            {message}
+          </p>
+        )}
+
         <p className="text-sm text-center text-gray-500 mt-4">
           Already have an account?{" "}
           <Link to="/login" className="text-pink-500 font-medium">
             Login
           </Link>
         </p>
+        
         <div className="flex flex-col items-center">
           <div className="mt-6 w-full">
-
-            {/*<GoogleLogin
-              onSuccess={handleSuccess}
-              onError={handleError}
-            /> */}
-
+            {/*<GoogleLogin /> */}
           </div>
         </div>
       </div>
