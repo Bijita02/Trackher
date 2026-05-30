@@ -2,12 +2,12 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import logo from "../assets/logo.png";
 
-
 const Login = () => {
   const [formData, setFormData] = useState({
     email: "",
     password: "",
   });
+  const [message, setMessage] = useState("");
 
   const handleChange = (e) => {
     setFormData({
@@ -16,17 +16,30 @@ const Login = () => {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log(formData);
-  };
+    setMessage("");
 
-  const handleSuccess = (credentialResponse) => {
-    console.log("Google Token:", credentialResponse.credential);
-  };
+    try {
+      const response = await fetch("http://localhost:5000/api/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
+      });
 
-  const handleError = () => {
-    console.log("Login Failed");
+      const data = await response.json();
+
+      if (response.ok) {
+        setMessage("🟢 Success: " + data.message);
+      } else {
+        setMessage("🔴 Error: " + data.error);
+      }
+    } catch (error) {
+      console.error("Login error:", error);
+      setMessage("🔴 Could not connect to the server.");
+    }
   };
 
   return (
@@ -50,6 +63,7 @@ const Login = () => {
           <input
             type="email"
             name="email"
+            value={formData.email}
             placeholder="Email Address"
             onChange={handleChange}
             required
@@ -59,6 +73,7 @@ const Login = () => {
           <input
             type="password"
             name="password"
+            value={formData.password}
             placeholder="Password"
             onChange={handleChange}
             required
@@ -79,6 +94,12 @@ const Login = () => {
           </button>
         </form>
 
+        {message && (
+          <p className="text-sm text-center font-medium mt-4 text-gray-700">
+            {message}
+          </p>
+        )}
+
         <p className="text-sm text-center text-gray-500 mt-4">
           Don't have an account?{" "}
           <Link to="/register" className="text-pink-500 font-medium">
@@ -88,12 +109,7 @@ const Login = () => {
 
         <div className="flex flex-col items-center">
           <div className="mt-6 w-full">
-            
-            {/*<GoogleLogin
-              onSuccess={handleSuccess}
-              onError={handleError}
-            />*/}
-
+            {/*<GoogleLogin />*/}
           </div>
         </div>
 
