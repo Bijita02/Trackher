@@ -11,12 +11,18 @@ const Register = () => {
   });
   const [message, setMessage] = useState("");
 
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-  };
+const handleChange = (e) => {
+  let value = e.target.value;
+
+  if (e.target.name === "name") {
+    value = value.replace(/[^a-zA-Z\s\-']/g, "");
+  }
+
+  setFormData({
+    ...formData,
+    [e.target.name]: value,
+  });
+};
 
   const handleSubmit = async (e) => {
     e.preventDefault();
