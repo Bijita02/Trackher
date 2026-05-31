@@ -1,8 +1,10 @@
+import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import logo from "../assets/logo.png";
 
 const Register = () => {
+  const navigate= useNavigate();
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -19,32 +21,42 @@ const Register = () => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setMessage(""); 
+  e.preventDefault();
+  setMessage("");
 
-    try {
-      const response = await fetch("http://localhost:5000/api/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
+  try {
+    const formattedData = {
+      ...formData,
+      birthdate: new Date(formData.birthdate)
+        .toISOString()
+        .split("T")[0]
+    };
 
-      const data = await response.json();
+    const response = await fetch("http://localhost:5000/api/register", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(formattedData),
+    });
 
-      if (response.ok) {
-        setMessage("🟢 Success: " + data.message);
-        setFormData({ name: "", email: "", password: "", birthdate: "" });
-        e.target.reset(); 
-      } else {
-        setMessage("🔴 Error: " + data.error);
-      }
-    } catch (error) {
-      console.error("Registration connection error:", error);
-      setMessage("🔴 Could not connect to the backend server.");
+    const data = await response.json();
+
+    if (response.ok) {
+      setMessage("Success: " + data.message);
+      setTimeout(()=>{
+        navigate("/dashboard");
+      },1000);
+      setFormData({ name: "", email: "", password: "", birthdate: "" });
+      e.target.reset();
+    } else {
+      setMessage(" Error: " + data.error);
     }
-  };
+  } catch (error) {
+    console.error("Registration connection error:", error);
+    setMessage("Could not connect to the backend server.");
+  }
+};
 
   return (
     <div className="relative min-h-screen flex items-center justify-center bg-gray-100 overflow-hidden">

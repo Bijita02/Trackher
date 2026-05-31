@@ -1,8 +1,10 @@
+import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import logo from "../assets/logo.png";
 
 const Login = () => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -32,13 +34,17 @@ const Login = () => {
       const data = await response.json();
 
       if (response.ok) {
-        setMessage("🟢 Success: " + data.message);
+        setMessage("Success: " + data.message);
+
+         setTimeout(() => {
+    navigate("/dashboard");  
+  }, 1000);
       } else {
-        setMessage("🔴 Error: " + data.error);
+        setMessage(" Error: " + data.error);
       }
     } catch (error) {
       console.error("Login error:", error);
-      setMessage("🔴 Could not connect to the server.");
+      setMessage(" Could not connect to the server.");
     }
   };
 

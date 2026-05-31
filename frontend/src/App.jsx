@@ -3,7 +3,7 @@ import Home from "./pages/home";
 import Register from "./pages/register";
 import Login from "./pages/login";
 import Navbar from "./pages/navbar";
-
+import Dashboard from "./pages/Dashboard";
 function App() {
   return (
     
@@ -15,6 +15,7 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/dashboard" element={<Dashboard/>}/>
         </Routes>
       </div>
     </Router>
