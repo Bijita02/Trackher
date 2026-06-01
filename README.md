@@ -33,13 +33,13 @@ TrackHer is a smart menstrual wellness companion that combines cycle tracking wi
 
    2. Create the users table:
       CREATE TABLE users (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          name VARCHAR(100) NOT NULL,
-          email VARCHAR(100) NOT NULL UNIQUE,
-          password VARCHAR(255) NOT NULL,
-          birthdate DATE NOT NULL,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    birthdate DATE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
    3. Create a `.env` file inside the "Trackher/Backend" folder and add:
       PORT=5000
