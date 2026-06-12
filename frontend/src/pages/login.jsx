@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import logo from "../assets/logo.png";
+import { FaEye, FaEyeSlash } from "react-icons/fa";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -10,6 +11,8 @@ const Login = () => {
     password: "",
   });
   const [message, setMessage] = useState("");
+  
+const [showPassword, setShowPassword] = useState(false);
 
   const handleChange = (e) => {
     setFormData({
@@ -76,16 +79,25 @@ const Login = () => {
             className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-400"
           />
 
-          <input
-            type="password"
-            name="password"
-            value={formData.password}
-            placeholder="Password"
-            onChange={handleChange}
-            required
-            className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-400"
-          />
+          <div className="relative">
+  <input
+    type={showPassword ? "text" : "password"}
+    name="password"
+    value={formData.password}
+    placeholder="Password"
+    onChange={handleChange}
+    required
+    className="w-full px-4 py-3 pr-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-400"
+  />
 
+  <button
+    type="button"
+    onClick={() => setShowPassword(!showPassword)}
+    className="absolute inset-y-0 right-3 flex items-center text-gray-500 hover:text-pink-500"
+  >
+    {showPassword ? <FaEyeSlash /> : <FaEye />}
+  </button>
+</div>
           <div className="text-right">
             <a href="#" className="text-sm text-pink-500 hover:underline">
               Forgot password?

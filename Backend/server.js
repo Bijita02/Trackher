@@ -3,7 +3,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const bcrypt = require("bcrypt");
-
+const validator=require("validator");
 const User = require("./models/User");
 
 const app = express();
@@ -23,6 +23,9 @@ app.get("/", (req, res) => {
 app.post("/api/register", async (req, res) => {
   try {
     const { name, email, password, birthdate } = req.body;
+    if (!validator.isEmail(email)) {
+      return res.status(400).json({ error: "Invalid email format" });
+    }
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
