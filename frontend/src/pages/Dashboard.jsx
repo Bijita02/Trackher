@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Onboardingmodal from "../components/onboardingmodal";
 
 function Dashboard() {
   const [showModal, setShowModal] = useState(false);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   const fetchUser = async () => {
     try {
@@ -24,13 +26,12 @@ function Dashboard() {
       if (!res.ok) throw new Error("Failed to fetch user");
 
       const data = await res.json();
-      console.log("User data:", data);
       setUser(data);
 
       if (!data.cycleInfo?.lastPeriod) {
         setShowModal(true);
       } else {
-        setShowModal(false); 
+        setShowModal(false);
       }
     } catch (err) {
       console.error(err);
@@ -46,7 +47,7 @@ function Dashboard() {
 
   const handleOnboardingClose = async () => {
     setShowModal(false);
-    await fetchUser(); 
+    await fetchUser();
   };
 
   const getNextPeriod = () => {
@@ -87,6 +88,7 @@ function Dashboard() {
 
         {user?.cycleInfo?.lastPeriod ? (
           <>
+            {/* Cycle stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
               <div className="bg-white rounded-xl p-4 border border-gray-100">
                 <p className="text-xs text-gray-400 mb-1">Last period</p>
@@ -123,7 +125,8 @@ function Dashboard() {
               </div>
             </div>
 
-            <div className="bg-pink-50 rounded-xl p-5 border border-pink-100 flex items-center justify-between">
+            {/* Next period banner */}
+            <div className="bg-pink-50 rounded-xl p-5 border border-pink-100 flex items-center justify-between mb-4">
               <div>
                 <p className="text-xs text-pink-400 mb-1">Next period expected</p>
                 <p className="text-xl font-semibold text-pink-700">
@@ -139,6 +142,39 @@ function Dashboard() {
               </div>
               <span className="text-4xl">📅</span>
             </div>
+
+            {/* Symptoms card */}
+            <button
+              onClick={() => navigate("/symptoms")}
+              className="w-full bg-white rounded-xl p-5 border border-gray-100 flex items-center justify-between hover:border-pink-200 hover:shadow-sm transition-all group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-11 h-11 rounded-full bg-pink-50 flex items-center justify-center text-xl group-hover:bg-pink-100 transition-colors">
+                  🩺
+                </div>
+                <div className="text-left">
+                  <p className="text-sm font-semibold text-gray-800">
+                    Log symptoms
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Track how you're feeling today
+                  </p>
+                </div>
+              </div>
+              <svg
+                className="w-4 h-4 text-gray-300 group-hover:text-pink-400 transition-colors"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 5l7 7-7 7"
+                />
+              </svg>
+            </button>
           </>
         ) : (
           <div className="text-center py-20">

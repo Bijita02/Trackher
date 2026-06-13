@@ -41,4 +41,101 @@ router.get("/users/:id", auth, async (req, res) => {
   }
 });
 
+// Log symptoms for a date
+router.post("/symptoms", auth, async (req, res) => {
+  try {
+    const { date, tags, notes, intensity } = req.body;
+
+    if (!date) {
+      return res.status(400).json({ error: "Date is required" });
+    }
+
+    if (!Array.isArray(tags) || tags.length === 0) {
+      return res.status(400).json({ error: "At least one symptom tag is required" });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      {
+        $push: {
+          "cycleInfo.symptoms": {
+            date: new Date(date),
+            tags,
+            notes: notes || "",
+            intensity: intensity || 5,
+          },
+        },
+      },
+      { new: true }
+    );
+
+    res.json(user.cycleInfo.symptoms);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get all logged symptoms for the user
+router.get("/symptoms", auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const symptoms = user.cycleInfo?.symptoms || [];
+
+    // Return sorted newest first
+    const sorted = [...symptoms].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    res.json(sorted);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete a specific symptom log by its MongoDB _id
+router.delete("/symptoms/:symptomId", auth, async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      {
+        $pull: {
+          "cycleInfo.symptoms": { _id: req.params.symptomId },
+        },
+      },
+      { new: true }
+    );
+
+    res.json(user.cycleInfo.symptoms);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update a specific symptom log by its MongoDB _id
+router.put("/symptoms/:symptomId", auth, async (req, res) => {
+  try {
+    const { date, tags, notes, intensity } = req.body;
+
+    const user = await User.findOneAndUpdate(
+      {
+        _id: req.user.id,
+        "cycleInfo.symptoms._id": req.params.symptomId,
+      },
+      {
+        $set: {
+          "cycleInfo.symptoms.$.date": new Date(date),
+          "cycleInfo.symptoms.$.tags": tags,
+          "cycleInfo.symptoms.$.notes": notes || "",
+          "cycleInfo.symptoms.$.intensity": intensity || 5,
+        },
+      },
+      { new: true }
+    );
+
+    res.json(user.cycleInfo.symptoms);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
