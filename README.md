@@ -5,7 +5,8 @@ TrackHer is a smart menstrual wellness companion that combines cycle tracking wi
      cd backend
      npm install express mongoose cors dotenv bcrypt jsonwebtoken
      npm install --save-dev nodemon
-     npm install google-auth-library
+     
+    
   ### Frontend
        cd frontend
        npm install 

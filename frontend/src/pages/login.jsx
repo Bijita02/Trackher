@@ -37,11 +37,12 @@ const [showPassword, setShowPassword] = useState(false);
       const data = await response.json();
 
       if (response.ok) {
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("userId", data.userId)
         setMessage("Success: " + data.message);
 
-         setTimeout(() => {
-    navigate("/dashboard");  
-  }, 1000);
+    
+         setTimeout(() => navigate("/dashboard") , 1000);
       } else {
         setMessage(" Error: " + data.error);
       }

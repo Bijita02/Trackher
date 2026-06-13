@@ -3,6 +3,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 const validator=require("validator");
 const User = require("./models/User");
 
@@ -62,12 +63,58 @@ app.post("/api/login", async (req, res) => {
 
     const isMatch = await bcrypt.compare(password, user.password);
 
-    if (isMatch) {
-      res.json({ message: "Login successful" });
+    if (!isMatch) {
+     return res.status(401).json({ error: "Invalid password" });
     } else {
-      res.status(401).json({ error: "Invalid password" });
+      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
+      res.json({ message: "Login successful", token, userId: user._id, });
     }
 
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+app.post("/api/user-cycle", async (req, res) => {
+  try {
+    const { userId, lastPeriod, cycleLength, periodLength } = req.body;
+    console.log("Received:", req.body);
+
+    
+    const result = await mongoose.connection.collection("users").updateOne(
+      { _id: new mongoose.Types.ObjectId(userId) },
+      {
+        $set: {
+          "cycleInfo.lastPeriod": new Date(lastPeriod),
+          "cycleInfo.cycleLength": Number(cycleLength),
+          "cycleInfo.periodLength": Number(periodLength),
+        },
+      }
+    );
+
+    console.log("Update result:", result);
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const updatedUser = await mongoose.connection.collection("users").findOne({
+      _id: new mongoose.Types.ObjectId(userId),
+    });
+
+    console.log("Updated user:", JSON.stringify(updatedUser));
+
+    res.json({ message: "Cycle info saved!", user: updatedUser });
+
+  } catch (err) {
+    console.error("Save error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+app.get("/api/users/:id", async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ error: "User not found" });
+    res.json(user);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
