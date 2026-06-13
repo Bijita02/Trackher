@@ -4,6 +4,8 @@ import Register from "./pages/register";
 import Login from "./pages/login";
 import Navbar from "./pages/navbar";
 import Dashboard from "./pages/Dashboard";
+import SymptomsPage from "./pages/SymptomsPage";
+
 function App() {
   return (
     
@@ -16,6 +18,7 @@ function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<Login />} />
           <Route path="/dashboard" element={<Dashboard/>}/>
+          <Route path="/symptoms" element={<SymptomsPage token={localStorage.getItem("token")} />} />
         </Routes>
       </div>
     </Router>
