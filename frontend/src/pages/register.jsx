@@ -54,7 +54,7 @@ const handleChange = (e) => {
     if (response.ok) {
       setMessage("Success: " + data.message);
       setTimeout(()=>{
-        navigate("/dashboard");
+        navigate("/login");
       },1000);
       setFormData({ name: "", email: "", password: "", birthdate: "" });
       e.target.reset();
