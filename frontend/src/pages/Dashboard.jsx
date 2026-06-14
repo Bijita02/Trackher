@@ -1,12 +1,17 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Onboardingmodal from "../components/onboardingmodal";
+import ChatBot from "../components/chatbot";
+
 
 function Dashboard() {
+  const navigate = useNavigate();
   const [showModal, setShowModal] = useState(false);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
+  
+  
+  const [isChatOpen, setIsChatOpen] = useState(false); 
 
   const fetchUser = async () => {
     try {
@@ -26,12 +31,13 @@ function Dashboard() {
       if (!res.ok) throw new Error("Failed to fetch user");
 
       const data = await res.json();
+      console.log("User data:", data);
       setUser(data);
 
       if (!data.cycleInfo?.lastPeriod) {
         setShowModal(true);
       } else {
-        setShowModal(false);
+        setShowModal(false); 
       }
     } catch (err) {
       console.error(err);
@@ -47,7 +53,7 @@ function Dashboard() {
 
   const handleOnboardingClose = async () => {
     setShowModal(false);
-    await fetchUser();
+    await fetchUser(); 
   };
 
   const getNextPeriod = () => {
@@ -75,20 +81,36 @@ function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 relative">
       {showModal && <Onboardingmodal onClose={handleOnboardingClose} />}
 
       <div className="max-w-3xl mx-auto p-6">
-        <div className="mb-6">
-          <h1 className="text-xl font-semibold text-gray-800">
-            Good morning{user?.name ? `, ${user.name.split(" ")[0]}` : ""} 🌸
-          </h1>
-          <p className="text-sm text-gray-400">Here's your cycle overview</p>
+        
+        {/*  2. NEW HEADER WITH ACTION ICONS */}
+        <div className="mb-8 flex justify-between items-start">
+          <div>
+            <h1 className="text-xl font-semibold text-gray-800">
+              Good morning{user?.name ? `, ${user.name.split(" ")[0]}` : ""} 🌸
+            </h1>
+            <p className="text-sm text-gray-400">Here's your cycle overview</p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {/* 1st Icon: Opens the Chat! */}
+            <button 
+              onClick={() => setIsChatOpen(true)}
+              className="w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center text-lg shadow-sm hover:border-pink-300 hover:text-pink-500 transition-colors"
+              title="Ask Luna"
+            >
+              💬
+            </button>
+
+            
+          </div>
         </div>
 
         {user?.cycleInfo?.lastPeriod ? (
           <>
-            {/* Cycle stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
               <div className="bg-white rounded-xl p-4 border border-gray-100">
                 <p className="text-xs text-gray-400 mb-1">Last period</p>
@@ -125,8 +147,7 @@ function Dashboard() {
               </div>
             </div>
 
-            {/* Next period banner */}
-            <div className="bg-pink-50 rounded-xl p-5 border border-pink-100 flex items-center justify-between mb-4">
+            <div className="bg-pink-50 rounded-xl p-5 border border-pink-100 flex items-center justify-between">
               <div>
                 <p className="text-xs text-pink-400 mb-1">Next period expected</p>
                 <p className="text-xl font-semibold text-pink-700">
@@ -142,8 +163,7 @@ function Dashboard() {
               </div>
               <span className="text-4xl">📅</span>
             </div>
-
-            {/* Symptoms card */}
+             {/* Symptoms card */}
             <button
               onClick={() => navigate("/symptoms")}
               className="w-full bg-white rounded-xl p-5 border border-gray-100 flex items-center justify-between hover:border-pink-200 hover:shadow-sm transition-all group"
@@ -188,6 +208,14 @@ function Dashboard() {
           </div>
         )}
       </div>
+
+      {/*  3. Conditionally render the ChatBot wrapped in a fixed corner container */}
+      {isChatOpen && (
+        <div className="fixed bottom-6 right-6 z-50">
+          <ChatBot onClose={() => setIsChatOpen(false)} />
+        </div>
+      )}
+      
     </div>
   );
 }
