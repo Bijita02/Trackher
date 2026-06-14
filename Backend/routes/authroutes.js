@@ -5,7 +5,7 @@ import User from "../models/User.js";
 
 const router = express.Router();
 
-// Register
+// 1. Register Route
 router.post("/register", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -17,7 +17,7 @@ router.post("/register", async (req, res) => {
   }
 });
 
-// Login
+// 2. Login Route
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -37,4 +37,38 @@ router.post("/login", async (req, res) => {
   }
 });
 
-export default router;
+// 🎯 3. NEW: Update User Cycle Information Route (Fixes the state glitch)
+// 🎯 UPDATE: Adjusted to match your nested cycleInfo.lastPeriod schema structure
+router.put("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { lastPeriod } = req.body; // Incoming date string from frontend (e.g., "2026-06-15")
+
+    if (!lastPeriod) {
+      return res.status(400).json({ error: "No date provided" });
+    }
+
+    // Find user by ID and update the nested object field cleanly
+    const updatedUser = await User.findByIdAndUpdate(
+      id,
+      { 
+        $set: { 
+          "cycleInfo.lastPeriod": new Date(lastPeriod) // Converts string to Date object for MongoDB
+        } 
+      }, 
+      { new: true } 
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ error: "User configuration profile data not found" });
+    }
+
+    res.json({ 
+      success: true, 
+      message: "Cycle history synchronized successfully!", 
+      lastPeriodDate: updatedUser.cycleInfo.lastPeriod // Send it back to confirm
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});

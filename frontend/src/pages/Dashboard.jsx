@@ -3,14 +3,11 @@ import { useNavigate } from "react-router-dom";
 import Onboardingmodal from "../components/onboardingmodal";
 import ChatBot from "../components/chatbot";
 
-
 function Dashboard() {
   const navigate = useNavigate();
   const [showModal, setShowModal] = useState(false);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  
-  
   const [isChatOpen, setIsChatOpen] = useState(false); 
 
   const fetchUser = async () => {
@@ -43,7 +40,7 @@ function Dashboard() {
       console.error(err);
       setShowModal(true);
     } finally {
-      setLoading(false);
+      loading && setLoading(false);
     }
   };
 
@@ -72,6 +69,18 @@ function Dashboard() {
     );
   };
 
+  // 🎯 INTEGRATION: Helper to navigate to your cycle sheet page with database state
+  const handleNavigateToCycleDetails = () => {
+    if (!user?.cycleInfo) return;
+    navigate("/cycle-details", {
+      state: {
+        lastPeriodDate: user.cycleInfo.lastPeriod,
+        cycleLength: Number(user.cycleInfo.cycleLength),
+        periodLength: Number(user.cycleInfo.periodLength)
+      }
+    });
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -86,7 +95,7 @@ function Dashboard() {
 
       <div className="max-w-3xl mx-auto p-6">
         
-        {/*  2. NEW HEADER WITH ACTION ICONS */}
+        {/* HEADER WITH ACTION ICONS */}
         <div className="mb-8 flex justify-between items-start">
           <div>
             <h1 className="text-xl font-semibold text-gray-800">
@@ -96,7 +105,16 @@ function Dashboard() {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* 1st Icon: Opens the Chat! */}
+            {/* 🎯 INTEGRATION 1: History Icon Button Shortcut */}
+            <button 
+              onClick={handleNavigateToCycleDetails}
+              className="w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center text-lg shadow-sm hover:border-pink-300 hover:text-pink-500 transition-colors"
+              title="View Cycle Sheet History"
+            >
+              📜
+            </button>
+
+            {/* Chatbot trigger */}
             <button 
               onClick={() => setIsChatOpen(true)}
               className="w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center text-lg shadow-sm hover:border-pink-300 hover:text-pink-500 transition-colors"
@@ -104,8 +122,6 @@ function Dashboard() {
             >
               💬
             </button>
-
-            
           </div>
         </div>
 
@@ -147,7 +163,12 @@ function Dashboard() {
               </div>
             </div>
 
-            <div className="bg-pink-50 rounded-xl p-5 border border-pink-100 flex items-center justify-between">
+            {/* 🎯 INTEGRATION 2: Made the pink card clickable */}
+            <div 
+              onClick={handleNavigateToCycleDetails}
+              className="bg-pink-50 rounded-xl p-5 border border-pink-100 flex items-center justify-between cursor-pointer hover:bg-pink-100/70 hover:border-pink-200 transition-all mb-4"
+              title="Click for detailed trends and history sheet"
+            >
               <div>
                 <p className="text-xs text-pink-400 mb-1">Next period expected</p>
                 <p className="text-xl font-semibold text-pink-700">
@@ -155,22 +176,24 @@ function Dashboard() {
                     month: "long",
                     day: "numeric",
                     year: "numeric",
+                    fullName: "true"
                   })}
                 </p>
-                <p className="text-xs text-pink-300 mt-1">
-                  Based on your average cycle
+                <p className="text-xs text-pink-400/80 mt-1 font-medium animate-pulse">
+                  ➔ Click to view detailed calendar sheet & phase analysis
                 </p>
               </div>
               <span className="text-4xl">📅</span>
             </div>
-             {/* Symptoms card */}
+
+            {/* Symptoms card */}
             <button
               onClick={() => navigate("/symptoms")}
               className="w-full bg-white rounded-xl p-5 border border-gray-100 flex items-center justify-between hover:border-pink-200 hover:shadow-sm transition-all group"
             >
               <div className="flex items-center gap-4">
                 <div className="w-11 h-11 rounded-full bg-pink-50 flex items-center justify-center text-xl group-hover:bg-pink-100 transition-colors">
-                  🩺
+                  芯
                 </div>
                 <div className="text-left">
                   <p className="text-sm font-semibold text-gray-800">
@@ -209,7 +232,6 @@ function Dashboard() {
         )}
       </div>
 
-      {/*  3. Conditionally render the ChatBot wrapped in a fixed corner container */}
       {isChatOpen && (
         <div className="fixed bottom-6 right-6 z-50">
           <ChatBot onClose={() => setIsChatOpen(false)} />
