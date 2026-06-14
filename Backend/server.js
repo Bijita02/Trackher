@@ -1,4 +1,6 @@
+
 require("dotenv").config();
+console.log("Checking API Key:", process.env.GEMINI_API_KEY ? "Key Found!" : "Key MISSING!");
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
@@ -6,15 +8,17 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const validator = require("validator");
 const User = require("./models/User");
-const symptomsRoute = require("./routes/SymptomsPage");
+const symptomsRoute = require("./routes/SymptomsRoute"); 
+const AiChatRoute = require("./routes/AiChatRoute");
 
 const app = express();
+
 app.use(cors());
 app.use(express.json());
 
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB Connected"))
-  .catch((err) => console.log(err));
+  .catch(err => console.log(err));
 
 app.get("/", (req, res) => {
   res.send("Backend server is running");
@@ -23,9 +27,13 @@ app.get("/", (req, res) => {
 app.post("/api/register", async (req, res) => {
   try {
     const { name, email, password, birthdate } = req.body;
-    if (!validator.isEmail(email)) return res.status(400).json({ error: "Invalid email format" });
+    if (!validator.isEmail(email)) {
+      return res.status(400).json({ error: "Invalid email format" });
+    }
     const existingUser = await User.findOne({ email });
-    if (existingUser) return res.status(400).json({ error: "Email already exists" });
+    if (existingUser) {
+      return res.status(400).json({ error: "Email already exists" });
+    }
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = new User({ name, email, password: hashedPassword, birthdate });
     await user.save();
@@ -54,14 +62,18 @@ app.post("/api/user-cycle", async (req, res) => {
     const { userId, lastPeriod, cycleLength, periodLength } = req.body;
     const result = await mongoose.connection.collection("users").updateOne(
       { _id: new mongoose.Types.ObjectId(userId) },
-      { $set: {
-        "cycleInfo.lastPeriod": new Date(lastPeriod),
-        "cycleInfo.cycleLength": Number(cycleLength),
-        "cycleInfo.periodLength": Number(periodLength),
-      }}
+      {
+        $set: {
+          "cycleInfo.lastPeriod": new Date(lastPeriod),
+          "cycleInfo.cycleLength": Number(cycleLength),
+          "cycleInfo.periodLength": Number(periodLength),
+        },
+      }
     );
     if (result.matchedCount === 0) return res.status(404).json({ error: "User not found" });
-    const updatedUser = await mongoose.connection.collection("users").findOne({ _id: new mongoose.Types.ObjectId(userId) });
+    const updatedUser = await mongoose.connection.collection("users").findOne({
+      _id: new mongoose.Types.ObjectId(userId),
+    });
     res.json({ message: "Cycle info saved!", user: updatedUser });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -78,7 +90,10 @@ app.get("/api/users/:id", async (req, res) => {
   }
 });
 
-app.use("/api/symptoms", symptomsRoute);
+app.use("/api/symptoms", symptomsRoute); 
+
+app.use("/api/ai", AiChatRoute);
+// Add this temporarily to see if Express is actually loading your route
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log("Server running on port " + PORT));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
