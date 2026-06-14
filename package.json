@@ -1,0 +1,25 @@
+{
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "mongoose": "^9.7.0"
+  },
+  "name": "trackher",
+  "version": "1.0.0",
+  "description": "TrackHer is a smart menstrual wellness companion that combines cycle tracking with AI-driven insights. Designed to empower users with better understanding of their hormonal patterns, TrackHer provides intelligent predictions, symptom analysis, and personalized recommendations all in a secure and user-focused platform.\r  ## Setup\r   ### Backend \r      cd backend\r      npm install express mongoose cors dotenv bcrypt jsonwebtoken\r      npm install --save-dev nodemon",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Bijita02/Trackher.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Bijita02/Trackher/issues"
+  },
+  "homepage": "https://github.com/Bijita02/Trackher#readme"
+}
