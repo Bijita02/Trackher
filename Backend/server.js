@@ -1,4 +1,6 @@
+
 require("dotenv").config();
+console.log("Checking API Key:", process.env.GEMINI_API_KEY ? "Key Found!" : "Key MISSING!");
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
@@ -7,6 +9,7 @@ const jwt = require("jsonwebtoken");
 const validator = require("validator");
 const User = require("./models/User");
 const symptomsRoute = require("./routes/SymptomsRoute"); 
+const AiChatRoute = require("./routes/AiChatRoute");
 
 const app = express();
 
@@ -88,6 +91,9 @@ app.get("/api/users/:id", async (req, res) => {
 });
 
 app.use("/api/symptoms", symptomsRoute); 
+
+app.use("/api/ai", AiChatRoute);
+// Add this temporarily to see if Express is actually loading your route
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
