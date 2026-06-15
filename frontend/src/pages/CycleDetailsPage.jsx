@@ -70,43 +70,39 @@ const CycleDetailsPage = () => {
 
   const metrics = calculateCycleMetrics();
 
-  // 🎯 Core Function: Perfectly structured try-catch matching your exact server.js file
-  const updatePeriodInDatabase = async (selectedDate) => {
-    try {
-      const userId = localStorage.getItem("userId");
+ const updatePeriodInDatabase = async (selectedDate) => {
+  try {
+    const userId = localStorage.getItem("userId");
 
-      if (!userId) {
-        alert("User session not found. Please log in again.");
-        return;
-      }
+    const res = await fetch("http://localhost:5000/api/user-cycle", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        userId,
+        lastPeriod: selectedDate,
+        cycleLength,
+        periodLength,
+      }),
+    });
 
-      // Optimistically update frontend UI instantly
-      setLastPeriodDate(selectedDate);
+    const data = await res.json();
 
-      // Sending data directly to the server endpoint we found in server.js
-      const res = await fetch(`http://localhost:5000/api/user-cycle`, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          userId: userId,
-          lastPeriod: selectedDate,
-          cycleLength: Number(cycleLength),
-          periodLength: Number(periodLength)
-        }),
-      });
-
-      if (!res.ok) {
-        throw new Error("Failed to save to database");
-      }
-      
-      console.log("MongoDB updated successfully via /api/user-cycle!");
-    } catch (err) {
-      console.error("Database sync error:", err);
-      alert("Changes saved locally, but failed to sync to server. Check backend routing.");
+    if (!res.ok) {
+      throw new Error(data.error || "Update failed");
     }
-  };
+
+    console.log("MongoDB UPDATED:", data.user);
+
+    // optional: sync UI instantly
+    setLastPeriodDate(selectedDate);
+
+  } catch (err) {
+    console.error("Update failed:", err);
+    alert("Failed to update cycle");
+  }
+};
 
   const handleLogPeriodToday = () => {
     const todayStr = new Date().toISOString().split('T')[0];

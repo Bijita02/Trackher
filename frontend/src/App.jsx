@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import SymptomsPage from "./pages/SymptomsPage";
 import ChatBot from "./components/chatbot";
 import CycleDetailsPage from './pages/CycleDetailsPage'; 
+import CycleHistory from './pages/CycleHistory';
 
 function App() {
   return (
@@ -21,9 +22,8 @@ function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/symptoms" element={<SymptomsPage token={localStorage.getItem("token")} />} />
           <Route path="/ai" element={<ChatBot />} />
-          
-          {/* Your Clean Route */}
           <Route path="/cycle-details" element={<CycleDetailsPage />} />
+          <Route path="/cycle-history" element={<CycleHistory />} />
         </Routes>
       </div>
     </Router>

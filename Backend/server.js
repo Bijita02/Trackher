@@ -60,7 +60,12 @@ app.post("/api/login", async (req, res) => {
 app.post("/api/user-cycle", async (req, res) => {
   try {
     const { userId, lastPeriod, cycleLength, periodLength } = req.body;
-    const result = await mongoose.connection.collection("users").updateOne(
+
+    if (!userId) {
+      return res.status(400).json({ error: "User ID missing" });
+    }
+
+    const updatedUser = await mongoose.connection.collection("users").findOneAndUpdate(
       { _id: new mongoose.Types.ObjectId(userId) },
       {
         $set: {
@@ -68,14 +73,29 @@ app.post("/api/user-cycle", async (req, res) => {
           "cycleInfo.cycleLength": Number(cycleLength),
           "cycleInfo.periodLength": Number(periodLength),
         },
+
+        $push: {
+          "cycleInfo.history": {
+            date: new Date(lastPeriod),
+          },
+        },
+      },
+      {
+        returnDocument: "after",
       }
     );
-    if (result.matchedCount === 0) return res.status(404).json({ error: "User not found" });
-    const updatedUser = await mongoose.connection.collection("users").findOne({
-      _id: new mongoose.Types.ObjectId(userId),
+
+    if (!updatedUser.value) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json({
+      message: "Cycle updated successfully",
+      user: updatedUser.value,
     });
-    res.json({ message: "Cycle info saved!", user: updatedUser });
+
   } catch (err) {
+    console.error("Cycle update error:", err);
     res.status(500).json({ error: err.message });
   }
 });

@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import logo from "../assets/logo.png";
+import { useNavigate } from "react-router-dom";
+import { BarChart2 } from "lucide-react";
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const navigate = useNavigate();
 
   return (
     <nav className="bg-white shadow-md fixed w-full z-50">
@@ -25,6 +28,15 @@ const Navbar = () => {
           >
             Home
           </Link>
+
+           <button
+            onClick={() => navigate("/cycle-history")}
+            className="text-gray-700 hover:text-pink-500 transition"
+            title="Cycle History"
+          >
+            <BarChart2 size={20} />
+          </button>
+
 
           <Link
             to="/login"
@@ -49,7 +61,6 @@ const Navbar = () => {
           ☰
         </button>
       </div>
-
  
       {isOpen && (
         <div className="md:hidden bg-white shadow-md px-6 py-4 space-y-4">
@@ -61,6 +72,14 @@ const Navbar = () => {
           >
             Home
           </Link>
+          
+          <button
+            onClick={() => {
+              navigate("/cycle-history");
+              setIsOpen(false);
+            }}
+            className="block text-gray-700 hover:text-pink-500"
+          ></button>
 
           <Link
             to="/login"
