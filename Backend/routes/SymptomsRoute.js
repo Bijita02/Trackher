@@ -38,4 +38,43 @@ router.post("/", verifyToken, async (req, res) => {
   }
 });
 
+router.put("/:id", verifyToken, async (req, res) => {
+  try {
+    const { date, tags, notes, intensity } = req.body;
+    if (!date) return res.status(400).json({ error: "Date is required" });
+
+    const symptom = await Symptom.findOne({ _id: req.params.id, userId: req.user.id });
+    if (!symptom) return res.status(404).json({ error: "Log not found" });
+
+    symptom.date = new Date(date);
+    symptom.tags = tags || [];
+    symptom.notes = notes || "";
+    symptom.intensity = intensity ?? 5;
+    await symptom.save();
+
+    const allSymptoms = await Symptom.find({ userId: req.user.id })
+      .sort({ date: -1 })
+      .lean();
+    res.json(allSymptoms);
+  } catch (err) {
+    console.error("PUT /api/symptoms/:id error:", err);
+    res.status(500).json({ error: "Failed to update symptom" });
+  }
+});
+
+router.delete("/:id", verifyToken, async (req, res) => {
+  try {
+    const symptom = await Symptom.findOneAndDelete({ _id: req.params.id, userId: req.user.id });
+    if (!symptom) return res.status(404).json({ error: "Log not found" });
+
+    const allSymptoms = await Symptom.find({ userId: req.user.id })
+      .sort({ date: -1 })
+      .lean();
+    res.json(allSymptoms);
+  } catch (err) {
+    console.error("DELETE /api/symptoms/:id error:", err);
+    res.status(500).json({ error: "Failed to delete symptom" });
+  }
+});
+
 module.exports = router;

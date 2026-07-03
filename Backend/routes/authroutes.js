@@ -5,7 +5,7 @@ import User from "../models/User.js";
 
 const router = express.Router();
 
-// 1. Register Route
+//Register Route
 router.post("/register", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -17,7 +17,7 @@ router.post("/register", async (req, res) => {
   }
 });
 
-// 2. Login Route
+//Login Route
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -37,8 +37,6 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// 🎯 3. NEW: Update User Cycle Information Route (Fixes the state glitch)
-// 🎯 UPDATE: Adjusted to match your nested cycleInfo.lastPeriod schema structure
 router.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -66,7 +64,7 @@ router.put("/:id", async (req, res) => {
     res.json({ 
       success: true, 
       message: "Cycle history synchronized successfully!", 
-      lastPeriodDate: updatedUser.cycleInfo.lastPeriod // Send it back to confirm
+      lastPeriodDate: updatedUser.cycleInfo.lastPeriod 
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

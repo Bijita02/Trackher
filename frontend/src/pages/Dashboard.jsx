@@ -69,7 +69,6 @@ function Dashboard() {
     );
   };
 
-  // 🎯 INTEGRATION: Helper to navigate to your cycle sheet page with database state
   const handleNavigateToCycleDetails = () => {
     if (!user?.cycleInfo) return;
     navigate("/cycle-details", {
@@ -95,7 +94,6 @@ function Dashboard() {
 
       <div className="max-w-3xl mx-auto p-6">
         
-        {/* HEADER WITH ACTION ICONS */}
         <div className="mb-8 flex justify-between items-start">
           <div>
             <h1 className="text-xl font-semibold text-gray-800">
@@ -105,7 +103,6 @@ function Dashboard() {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* 🎯 INTEGRATION 1: History Icon Button Shortcut */}
             <button 
               onClick={handleNavigateToCycleDetails}
               className="w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center text-lg shadow-sm hover:border-pink-300 hover:text-pink-500 transition-colors"
@@ -114,7 +111,6 @@ function Dashboard() {
               📜
             </button>
 
-            {/* Chatbot trigger */}
             <button 
               onClick={() => setIsChatOpen(true)}
               className="w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center text-lg shadow-sm hover:border-pink-300 hover:text-pink-500 transition-colors"
@@ -163,7 +159,6 @@ function Dashboard() {
               </div>
             </div>
 
-            {/* 🎯 INTEGRATION 2: Made the pink card clickable */}
             <div 
               onClick={handleNavigateToCycleDetails}
               className="bg-pink-50 rounded-xl p-5 border border-pink-100 flex items-center justify-between cursor-pointer hover:bg-pink-100/70 hover:border-pink-200 transition-all mb-4"
@@ -186,7 +181,6 @@ function Dashboard() {
               <span className="text-4xl">📅</span>
             </div>
 
-            {/* Symptoms card */}
             <button
               onClick={() => navigate("/symptoms")}
               className="w-full bg-white rounded-xl p-5 border border-gray-100 flex items-center justify-between hover:border-pink-200 hover:shadow-sm transition-all group"

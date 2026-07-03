@@ -20,7 +20,6 @@
   font-family: system-ui, -apple-system, sans-serif;
 }
 
-/* Countdown Card Design Layout */
 .countdown-hero-card {
   background: #fff;
   border-radius: 16px;
@@ -57,7 +56,6 @@
   margin-top: 1rem;
 }
 
-/* Phase status wrapper box layout rules */
 .phase-status-box {
   color: white;
   padding: 1.5rem;
@@ -79,7 +77,6 @@
   opacity: 0.95;
 }
 
-/* Sheet view components structure */
 .history-sheet-card {
   background: white;
   border-radius: 16px;
@@ -130,7 +127,6 @@
   border-radius: 6px;
 }
 
-/* Highlights */
 .mini-day-cell.predicted-period {
   background: #ffe3e3;
   color: #e03131;
@@ -161,7 +157,7 @@
 }
 .pink-dot { background: #ffe3e3; border: 1px solid #e03131; }
 .dark-dot { background: #343a40; }
-/* Sleek Period Logging Layout Container */
+
 .log-options-wrapper-box {
   margin-top: 1.5rem;
   padding-top: 1.25rem;
@@ -174,8 +170,6 @@
   margin-left: auto;
   margin-right: auto;
 }
-
-/* Quick Action Top Primary Highlight Trigger */
 .quick-today-log-btn {
   background: #c92a2a;
   color: white;
@@ -194,7 +188,6 @@
   transform: translateY(-1px);
 }
 
-/* Subtle separator rule line */
 .divider-line-text {
   text-align: center;
   position: relative;
@@ -220,7 +213,6 @@
   font-weight: 500;
 }
 
-/* Prettier Minimalistic Calendar Input Core Layout styling rules */
 .clean-calendar-input {
   width: 100%;
   max-width: 200px;
@@ -280,7 +272,6 @@
   cursor: pointer;
 }
 .cancel-log-btn:hover { background: #e9ecef; }
-/* Navigation Row inside the calendar wrapper */
 .calendar-nav-row {
   display: flex;
   justify-content: space-between;
@@ -306,7 +297,6 @@
   color: #d6336c;
 }
 
-/* Past cycles color definition map indicators */
 .mini-day-cell.past-period {
   background-color: #ffe3e3 !important;
   color: #c92a2a !important;
@@ -317,11 +307,7 @@
 .dot.red-dot {
   background-color: #c92a2a;
 }
-/* ==========================================================================
-   ✨ PREMIUM LOG PERIOD UI HIGHLIGHTS
-   ========================================================================== */
 
-/* The main trigger button - Now highly visible and highlighted */
 .log-period-trigger-btn {
   margin-top: 1.25rem;
   background: linear-gradient(135deg, #d6336c 0%, #c92a2a 100%);
@@ -339,24 +325,21 @@
   overflow: hidden;
 }
 
-/* Hover effects for depth */
 .log-period-trigger-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(214, 51, 108, 0.45);
   background: linear-gradient(135deg, #e64980 0%, #a61e4d 100%);
 }
 
-/* Active press feedback state */
 .log-period-trigger-btn:active {
   transform: translateY(1px);
   box-shadow: 0 2px 8px rgba(214, 51, 108, 0.3);
 }
 
-/* Sleek Period Logging Layout Container Drawer */
 .log-options-wrapper-box {
   margin-top: 1.5rem;
   padding: 1.25rem;
-  background: #fff0f6; /* Soft warm pink container tint */
+  background: #fff0f6; 
   border: 1px solid #ffdeeb;
   border-radius: 16px;
   width: 100%;
@@ -369,7 +352,6 @@
   animation: slideDownFade 0.3s ease-out;
 }
 
-/* Quick Action Top Primary Highlight Trigger */
 .quick-today-log-btn {
   background: #c92a2a;
   color: white;
@@ -388,7 +370,6 @@
   transform: translateY(-1px);
 }
 
-/* Subtle text separator rule line */
 .divider-line-text {
   text-align: center;
   position: relative;
@@ -405,7 +386,7 @@
   z-index: 1;
 }
 .divider-line-text span {
-  background: #fff0f6; /* Matches the container tint */
+  background: #fff0f6;
   padding: 0 12px;
   font-size: 0.8rem;
   color: #a61e4d;
@@ -414,7 +395,6 @@
   font-weight: 600;
 }
 
-/* Prettier Minimalistic Calendar Input Core Layout */
 .clean-calendar-input {
   width: 100%;
   max-width: 220px;
@@ -474,7 +454,6 @@
 }
 .cancel-log-btn:hover { background: #dee2e6; }
 
-/* Smooth dropdown entry animation */
 @keyframes slideDownFade {
   from {
     opacity: 0;
