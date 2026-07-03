@@ -3,12 +3,14 @@ import { useNavigate } from "react-router-dom";
 import Onboardingmodal from "../components/onboardingmodal";
 import ChatBot from "../components/chatbot";
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
 function Dashboard() {
   const navigate = useNavigate();
   const [showModal, setShowModal] = useState(false);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [isChatOpen, setIsChatOpen] = useState(false); 
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   const fetchUser = async () => {
     try {
@@ -28,13 +30,12 @@ function Dashboard() {
       if (!res.ok) throw new Error("Failed to fetch user");
 
       const data = await res.json();
-      console.log("User data:", data);
       setUser(data);
 
       if (!data.cycleInfo?.lastPeriod) {
         setShowModal(true);
       } else {
-        setShowModal(false); 
+        setShowModal(false);
       }
     } catch (err) {
       console.error(err);
@@ -50,7 +51,7 @@ function Dashboard() {
 
   const handleOnboardingClose = async () => {
     setShowModal(false);
-    await fetchUser(); 
+    await fetchUser();
   };
 
   const getNextPeriod = () => {
@@ -60,14 +61,45 @@ function Dashboard() {
     return next;
   };
 
-  const getDaysUntil = () => {
-    const next = getNextPeriod();
-    if (!next) return null;
-    return Math.max(
-      0,
-      Math.ceil((next.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-    );
+  const getCycleDay = () => {
+    if (!user?.cycleInfo?.lastPeriod) return null;
+    const cycleLength = Number(user.cycleInfo.cycleLength);
+    const lastPeriod = new Date(user.cycleInfo.lastPeriod);
+    const daysSince = Math.floor((Date.now() - lastPeriod.getTime()) / MS_PER_DAY);
+    if (daysSince < 0) return 1;
+    return (daysSince % cycleLength) + 1;
   };
+
+  const PHASES = [
+    { key: "menstrual", label: "Period", color: "#C2597A" },
+    { key: "follicular", label: "Follicular", color: "#F0C48F" },
+    { key: "ovulatory", label: "Ovulation", color: "#D97E3D" },
+    { key: "luteal", label: "Luteal", color: "#7A3349" },
+  ];
+
+  const getPhase = (cycleDay, periodLength) => {
+    if (cycleDay == null) return null;
+    if (cycleDay <= periodLength) return "menstrual";
+    if (cycleDay <= 13) return "follicular";
+    if (cycleDay <= 15) return "ovulatory";
+    return "luteal";
+  };
+
+  const getFertilityLabel = (phaseKey) => {
+    switch (phaseKey) {
+      case "menstrual":
+        return "On your period";
+      case "ovulatory":
+        return "High chance of getting pregnant";
+      case "follicular":
+        return "Low chance of getting pregnant";
+      default:
+        return "Low chance of getting pregnant";
+    }
+  };
+
+  const formatDate = (d) =>
+    d?.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
   const handleNavigateToCycleDetails = () => {
     if (!user?.cycleInfo) return;
@@ -75,8 +107,8 @@ function Dashboard() {
       state: {
         lastPeriodDate: user.cycleInfo.lastPeriod,
         cycleLength: Number(user.cycleInfo.cycleLength),
-        periodLength: Number(user.cycleInfo.periodLength)
-      }
+        periodLength: Number(user.cycleInfo.periodLength),
+      },
     });
   };
 
@@ -88,12 +120,43 @@ function Dashboard() {
     );
   }
 
+  const cycleLength = user?.cycleInfo ? Number(user.cycleInfo.cycleLength) : null;
+  const periodLength = user?.cycleInfo ? Number(user.cycleInfo.periodLength) : null;
+  const cycleDay = getCycleDay();
+  const currentPhase = getPhase(cycleDay, periodLength);
+  const lastPeriodDate = user?.cycleInfo?.lastPeriod ? new Date(user.cycleInfo.lastPeriod) : null;
+
+  const dayBounds = cycleLength
+    ? {
+        menstrualEnd: Math.min(periodLength, cycleLength),
+        follicularEnd: Math.min(Math.max(13, periodLength), cycleLength),
+        ovulatoryEnd: Math.min(Math.max(15, periodLength), cycleLength),
+      }
+    : { menstrualEnd: 0, follicularEnd: 0, ovulatoryEnd: 0 };
+
+  const toPct = (days) => (cycleLength ? (days / cycleLength) * 100 : 0);
+
+  const segments = cycleLength
+    ? [
+        { ...PHASES[0], start: 0, width: toPct(dayBounds.menstrualEnd) },
+        { ...PHASES[1], start: toPct(dayBounds.menstrualEnd), width: toPct(dayBounds.follicularEnd - dayBounds.menstrualEnd) },
+        { ...PHASES[2], start: toPct(dayBounds.follicularEnd), width: toPct(dayBounds.ovulatoryEnd - dayBounds.follicularEnd) },
+        { ...PHASES[3], start: toPct(dayBounds.ovulatoryEnd), width: 100 - toPct(dayBounds.ovulatoryEnd) },
+      ]
+    : [];
+
+  const todayPct = cycleLength && cycleDay ? Math.min(100, ((cycleDay - 1) / cycleLength) * 100) : 0;
+
+  // History end date for the current cycle's period
+  const periodEndDate = lastPeriodDate
+    ? new Date(lastPeriodDate.getTime() + (periodLength - 1) * MS_PER_DAY)
+    : null;
+
   return (
-    <div className="min-h-screen bg-gray-50 relative">
+    <div className="min-h-screen bg-[#FAF7F5] relative">
       {showModal && <Onboardingmodal onClose={handleOnboardingClose} />}
 
       <div className="max-w-3xl mx-auto p-6">
-        
         <div className="mb-8 flex justify-between items-start">
           <div>
             <h1 className="text-xl font-semibold text-gray-800">
@@ -103,17 +166,17 @@ function Dashboard() {
           </div>
 
           <div className="flex items-center gap-3">
-            <button 
+            <button
               onClick={handleNavigateToCycleDetails}
-              className="w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center text-lg shadow-sm hover:border-pink-300 hover:text-pink-500 transition-colors"
+              className="w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center text-lg shadow-sm hover:border-[#C2597A] hover:text-[#C2597A] transition-colors"
               title="View Cycle Sheet History"
             >
               📜
             </button>
 
-            <button 
+            <button
               onClick={() => setIsChatOpen(true)}
-              className="w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center text-lg shadow-sm hover:border-pink-300 hover:text-pink-500 transition-colors"
+              className="w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center text-lg shadow-sm hover:border-[#C2597A] hover:text-[#C2597A] transition-colors"
               title="Ask Luna"
             >
               💬
@@ -123,71 +186,116 @@ function Dashboard() {
 
         {user?.cycleInfo?.lastPeriod ? (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-              <div className="bg-white rounded-xl p-4 border border-gray-100">
-                <p className="text-xs text-gray-400 mb-1">Last period</p>
-                <p className="text-lg font-semibold text-gray-800">
-                  {new Date(user.cycleInfo.lastPeriod).toLocaleDateString(
-                    "en-US",
-                    { month: "short", day: "numeric" }
-                  )}
-                </p>
+            {/* Today card */}
+            <div className="bg-white rounded-2xl p-6 mb-4 border border-gray-100">
+              <p className="text-base font-semibold text-gray-800">
+                Today · Cycle Day {cycleDay}
+              </p>
+              <p className="text-xs text-gray-400 mt-0.5 mb-5">
+                {getFertilityLabel(currentPhase)}
+              </p>
+
+              <div className="relative pt-6 pb-1">
+                <div className="h-2 rounded-full bg-gray-100 relative overflow-hidden flex">
+                  {segments.map((seg) => (
+                    <div
+                      key={seg.key}
+                      className="absolute top-0 h-full"
+                      style={{ left: `${seg.start}%`, width: `${seg.width}%`, backgroundColor: seg.color }}
+                    />
+                  ))}
+                </div>
+
+                <div
+                  className="absolute -top-1 flex flex-col items-center"
+                  style={{ left: `${todayPct}%`, transform: "translateX(-50%)" }}
+                >
+                  <div className="w-4 h-4 rounded-full bg-white border-2 border-[#7A3349] shadow-sm" />
+                  <span className="text-[10px] font-semibold text-black bg-white px-1.5 rounded mt-1 whitespace-nowrap shadow-sm">
+                    Today
+                  </span>
+                </div>
               </div>
 
-              <div className="bg-white rounded-xl p-4 border border-gray-100">
-                <p className="text-xs text-gray-400 mb-1">Cycle length</p>
-                <p className="text-lg font-semibold text-gray-800">
-                  {user.cycleInfo.cycleLength}{" "}
-                  <span className="text-sm font-normal text-gray-400">days</span>
-                </p>
-              </div>
-
-              <div className="bg-white rounded-xl p-4 border border-gray-100">
-                <p className="text-xs text-gray-400 mb-1">Period length</p>
-                <p className="text-lg font-semibold text-gray-800">
-                  {user.cycleInfo.periodLength}{" "}
-                  <span className="text-sm font-normal text-gray-400">days</span>
-                </p>
-              </div>
-
-              <div className="bg-white rounded-xl p-4 border border-gray-100">
-                <p className="text-xs text-gray-400 mb-1">Days until next</p>
-                <p className="text-lg font-semibold text-pink-500">
-                  {getDaysUntil()}{" "}
-                  <span className="text-sm font-normal text-gray-400">days</span>
-                </p>
+              <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-4">
+                {PHASES.map((p) => (
+                  <div key={p.key} className="flex items-center gap-1.5">
+                    <span
+                      className="w-2 h-2 rounded-full"
+                      style={{ backgroundColor: p.color }}
+                    />
+                    <span
+                      className={`text-[11px] ${
+                        currentPhase === p.key ? "font-semibold text-gray-700" : "text-gray-400"
+                      }`}
+                    >
+                      {p.label}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
 
-            <div 
+            {/* Cycle analysis */}
+            <div
               onClick={handleNavigateToCycleDetails}
-              className="bg-pink-50 rounded-xl p-5 border border-pink-100 flex items-center justify-between cursor-pointer hover:bg-pink-100/70 hover:border-pink-200 transition-all mb-4"
-              title="Click for detailed trends and history sheet"
+              className="bg-white rounded-2xl p-6 mb-4 border border-gray-100 cursor-pointer hover:border-[#C2597A]/40 transition-colors"
             >
-              <div>
-                <p className="text-xs text-pink-400 mb-1">Next period expected</p>
-                <p className="text-xl font-semibold text-pink-700">
-                  {getNextPeriod()?.toLocaleDateString("en-US", {
-                    month: "long",
-                    day: "numeric",
-                    year: "numeric",
-                    fullName: "true"
-                  })}
-                </p>
-                <p className="text-xs text-pink-400/80 mt-1 font-medium animate-pulse">
-                  ➔ Click to view detailed calendar sheet & phase analysis
-                </p>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-base font-semibold text-gray-800">Cycle analysis</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Based on your current cycle settings</p>
+                </div>
+                <span className="text-gray-300 text-lg">›</span>
               </div>
-              <span className="text-4xl">📅</span>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-[#F6DCE3] rounded-xl p-4">
+                  <p className="text-xl font-semibold text-[#7A3349]">{periodLength}</p>
+                  <p className="text-xs text-[#7A3349]/70 mt-0.5">Period days</p>
+                </div>
+                <div className="bg-[#F5E7BE] rounded-xl p-4">
+                  <p className="text-xl font-semibold text-[#9A5518]">{cycleLength}</p>
+                  <p className="text-xs text-[#9A5518]/70 mt-0.5">Cycle days</p>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-4">
+                  <p className="text-sm font-semibold text-gray-700 mt-1">{formatDate(lastPeriodDate)}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Last period</p>
+                </div>
+              </div>
+            </div>
+
+            {/* History */}
+            <div className="bg-white rounded-2xl p-6 mb-4 border border-gray-100">
+              <p className="text-base font-semibold text-gray-800 mb-1">History</p>
+              <p className="text-xs text-gray-400 mb-4">
+                Your logged cycle — full history coming soon
+              </p>
+
+              <div className="flex items-center justify-between py-2">
+                <p className="text-sm text-gray-700">
+                  {formatDate(lastPeriodDate)} – {formatDate(periodEndDate)}
+                </p>
+                <span className="text-xs font-medium text-[#7A3349] bg-[#F6DCE3] rounded-full px-2.5 py-1">
+                  {periodLength} days
+                </span>
+              </div>
+
+              <button
+                onClick={handleNavigateToCycleDetails}
+                className="text-xs font-medium text-[#C2597A] mt-3 hover:text-[#7A3349] transition-colors"
+              >
+                View full calendar & phase history →
+              </button>
             </div>
 
             <button
               onClick={() => navigate("/symptoms")}
-              className="w-full bg-white rounded-xl p-5 border border-gray-100 flex items-center justify-between hover:border-pink-200 hover:shadow-sm transition-all group"
+              className="w-full bg-white rounded-xl p-5 border border-gray-100 flex items-center justify-between hover:border-[#C2597A]/40 hover:shadow-sm transition-all group"
             >
               <div className="flex items-center gap-4">
-                <div className="w-11 h-11 rounded-full bg-pink-50 flex items-center justify-center text-xl group-hover:bg-pink-100 transition-colors">
-                  芯
+                <div className="w-11 h-11 rounded-full bg-[#F6DCE3] flex items-center justify-center text-xl group-hover:bg-[#F0C7D1] transition-colors">
+                  🩺
                 </div>
                 <div className="text-left">
                   <p className="text-sm font-semibold text-gray-800">
@@ -199,7 +307,7 @@ function Dashboard() {
                 </div>
               </div>
               <svg
-                className="w-4 h-4 text-gray-300 group-hover:text-pink-400 transition-colors"
+                className="w-4 h-4 text-gray-300 group-hover:text-[#C2597A] transition-colors"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -218,7 +326,7 @@ function Dashboard() {
             <p className="text-gray-400 mb-4">No cycle data yet.</p>
             <button
               onClick={() => setShowModal(true)}
-              className="bg-pink-400 text-white px-6 py-2.5 rounded-lg text-sm hover:bg-pink-500 transition-colors"
+              className="bg-[#C2597A] text-white px-6 py-2.5 rounded-lg text-sm hover:bg-[#7A3349] transition-colors"
             >
               Set up your cycle
             </button>
@@ -231,7 +339,6 @@ function Dashboard() {
           <ChatBot onClose={() => setIsChatOpen(false)} />
         </div>
       )}
-      
     </div>
   );
 }
