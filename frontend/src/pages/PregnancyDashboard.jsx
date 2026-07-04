@@ -3,10 +3,9 @@ import { useNavigate } from "react-router-dom";
 import ChatBot from "../components/chatbot";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const TOTAL_PREGNANCY_DAYS = 280; 
+const TOTAL_PREGNANCY_DAYS = 280;
 
 const POSTPARTUM_BUFFER_DAYS = 42;
-
 
 const BABY_SIZE_BY_WEEK = {
   4: { emoji: "🌱", thing: "a poppy seed", note: "Implantation is just happening — most people don't know yet." },
@@ -165,7 +164,7 @@ function PregnancyDashboard() {
 
   const weeksPregnant = Math.floor(clampedDaysElapsed / 7);
   const dayIntoWeek = clampedDaysElapsed % 7;
-  const displayWeek = Math.min(40, weeksPregnant + 1); // "week 12" means 11w0d–11w6d
+  const displayWeek = Math.min(40, weeksPregnant + 1); 
 
   const daysUntilDue = Math.max(0, Math.ceil((dueDate.getTime() - today.getTime()) / MS_PER_DAY));
   const weeksUntilDue = Math.floor(daysUntilDue / 7);
@@ -314,11 +313,10 @@ function PregnancyDashboard() {
           </svg>
         </button>
 
-        {/* Manual override to leave pregnancy mode early */}
         <button
           onClick={handleEndPregnancy}
           disabled={endingPregnancy}
-          className="w-full text-center text-xs text-gray-400 hover:text-[#7A3349] transition-colors py-2 disabled:opacity-50"
+          className="w-full bg-white rounded-xl p-4 border border-gray-200 text-center text-sm text-gray-500 hover:border-[#C2597A]/40 hover:text-[#7A3349] transition-colors disabled:opacity-50"
         >
           {endingPregnancy ? "Ending pregnancy tracking…" : "End pregnancy tracking & return to cycle tracking"}
         </button>
