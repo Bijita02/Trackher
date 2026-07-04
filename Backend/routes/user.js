@@ -4,7 +4,9 @@ import jwt from "jsonwebtoken";
 
 const router = express.Router();
 
-// Middleware to verify token
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const TOTAL_PREGNANCY_DAYS = 280; 
+
 const auth = (req, res, next) => {
   const token = req.headers.authorization?.split(" ")[1];
   if (!token) return res.status(401).json({ error: "No token" });
@@ -23,6 +25,54 @@ router.post("/user-cycle", auth, async (req, res) => {
     const user = await User.findByIdAndUpdate(
       req.user.id,
       { cycleInfo: { lastPeriod, cycleLength, periodLength } },
+      { new: true }
+    );
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/pregnancy-info", auth, async (req, res) => {
+  try {
+    const { dueDate, lastPeriod } = req.body;
+
+    let resolvedDueDate;
+    if (dueDate) {
+      resolvedDueDate = new Date(dueDate);
+    } else if (lastPeriod) {
+      resolvedDueDate = new Date(new Date(lastPeriod).getTime() + TOTAL_PREGNANCY_DAYS * MS_PER_DAY);
+    } else {
+      return res.status(400).json({ error: "Provide either dueDate or lastPeriod" });
+    }
+
+    if (Number.isNaN(resolvedDueDate.getTime())) {
+      return res.status(400).json({ error: "Invalid date" });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      {
+        pregnancyInfo: {
+          dueDate: resolvedDueDate,
+          lastPeriod: lastPeriod ? new Date(lastPeriod) : undefined,
+          startDate: new Date(),
+        },
+      },
+      { new: true }
+    );
+
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete("/pregnancy-info", auth, async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { $set: { pregnancyInfo: null } },
       { new: true }
     );
     res.json(user);
@@ -83,7 +133,6 @@ router.get("/symptoms", auth, async (req, res) => {
 
     const symptoms = user.cycleInfo?.symptoms || [];
 
-    // Return sorted newest first
     const sorted = [...symptoms].sort((a, b) => new Date(b.date) - new Date(a.date));
 
     res.json(sorted);

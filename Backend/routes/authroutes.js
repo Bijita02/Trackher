@@ -46,27 +46,28 @@ router.put("/:id", async (req, res) => {
       return res.status(400).json({ error: "No date provided" });
     }
 
-    // Find user by ID and update the nested object field cleanly
     const updatedUser = await User.findByIdAndUpdate(
       id,
-      { 
-        $set: { 
-          "cycleInfo.lastPeriod": new Date(lastPeriod) // Converts string to Date object for MongoDB
-        } 
-      }, 
-      { new: true } 
+      {
+        $set: {
+          "cycleInfo.lastPeriod": new Date(lastPeriod),
+        },
+      },
+      { new: true }
     );
 
     if (!updatedUser) {
       return res.status(404).json({ error: "User configuration profile data not found" });
     }
 
-    res.json({ 
-      success: true, 
-      message: "Cycle history synchronized successfully!", 
-      lastPeriodDate: updatedUser.cycleInfo.lastPeriod 
+    res.json({
+      success: true,
+      message: "Cycle history synchronized successfully!",
+      lastPeriodDate: updatedUser.cycleInfo.lastPeriod,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
+
+export default router;

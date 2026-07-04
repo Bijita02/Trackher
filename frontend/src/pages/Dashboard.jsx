@@ -5,6 +5,8 @@ import ChatBot from "../components/chatbot";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
+const POSTPARTUM_BUFFER_DAYS = 42;
+
 function Dashboard() {
   const navigate = useNavigate();
   const [showModal, setShowModal] = useState(false);
@@ -31,6 +33,16 @@ function Dashboard() {
 
       const data = await res.json();
       setUser(data);
+
+      const dueDateStr = data?.pregnancyInfo?.dueDate;
+      if (dueDateStr) {
+        const dueDate = new Date(dueDateStr);
+        const daysPastDue = (Date.now() - dueDate.getTime()) / MS_PER_DAY;
+        if (daysPastDue < POSTPARTUM_BUFFER_DAYS) {
+          navigate("/pregnancy-dashboard", { replace: true });
+          return;
+        }
+      }
 
       if (!data.cycleInfo?.lastPeriod) {
         setShowModal(true);
@@ -291,7 +303,7 @@ function Dashboard() {
 
             <button
               onClick={() => navigate("/symptoms")}
-              className="w-full bg-white rounded-xl p-5 border border-gray-100 flex items-center justify-between hover:border-[#C2597A]/40 hover:shadow-sm transition-all group"
+              className="w-full bg-white rounded-xl p-5 border border-gray-100 flex items-center justify-between hover:border-[#C2597A]/40 hover:shadow-sm transition-all group mb-3"
             >
               <div className="flex items-center gap-4">
                 <div className="w-11 h-11 rounded-full bg-[#F6DCE3] flex items-center justify-center text-xl group-hover:bg-[#F0C7D1] transition-colors">
@@ -303,6 +315,38 @@ function Dashboard() {
                   </p>
                   <p className="text-xs text-gray-400 mt-0.5">
                     Track how you're feeling today
+                  </p>
+                </div>
+              </div>
+              <svg
+                className="w-4 h-4 text-gray-300 group-hover:text-[#C2597A] transition-colors"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 5l7 7-7 7"
+                />
+              </svg>
+            </button>
+
+            <button
+              onClick={() => navigate("/pregnancy-setup")}
+              className="w-full bg-white rounded-xl p-5 border border-gray-100 flex items-center justify-between hover:border-[#C2597A]/40 hover:shadow-sm transition-all group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-11 h-11 rounded-full bg-[#F6DCE3] flex items-center justify-center text-xl group-hover:bg-[#F0C7D1] transition-colors">
+                  🤰
+                </div>
+                <div className="text-left">
+                  <p className="text-sm font-semibold text-gray-800">
+                    I'm pregnant
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Switch to pregnancy tracking
                   </p>
                 </div>
               </div>
