@@ -1,4 +1,3 @@
-
 require("dotenv").config();
 console.log("Checking API Key:", process.env.GEMINI_API_KEY ? "Key Found!" : "Key MISSING!");
 const express = require("express");
@@ -97,6 +96,79 @@ app.post("/api/user-cycle", async (req, res) => {
   } catch (err) {
     console.error("Cycle update error:", err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+function verifyToken(req) {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) {
+    const err = new Error("No token");
+    err.status = 401;
+    throw err;
+  }
+  try {
+    return jwt.verify(token, process.env.JWT_SECRET);
+  } catch {
+    const err = new Error("Invalid token");
+    err.status = 401;
+    throw err;
+  }
+}
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const TOTAL_PREGNANCY_DAYS = 280; 
+
+app.post("/api/pregnancy-info", async (req, res) => {
+  try {
+    const decoded = verifyToken(req);
+    const { dueDate, lastPeriod } = req.body;
+
+    let resolvedDueDate;
+    if (dueDate) {
+      resolvedDueDate = new Date(dueDate);
+    } else if (lastPeriod) {
+      resolvedDueDate = new Date(new Date(lastPeriod).getTime() + TOTAL_PREGNANCY_DAYS * MS_PER_DAY);
+    } else {
+      return res.status(400).json({ error: "Provide either dueDate or lastPeriod" });
+    }
+
+    if (Number.isNaN(resolvedDueDate.getTime())) {
+      return res.status(400).json({ error: "Invalid date" });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      decoded.id,
+      {
+        pregnancyInfo: {
+          dueDate: resolvedDueDate,
+          lastPeriod: lastPeriod ? new Date(lastPeriod) : undefined,
+          startDate: new Date(),
+        },
+      },
+      { new: true }
+    );
+
+    if (!user) return res.status(404).json({ error: "User not found" });
+    res.json(user);
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/pregnancy-info", async (req, res) => {
+  try {
+    const decoded = verifyToken(req);
+
+    const user = await User.findByIdAndUpdate(
+      decoded.id,
+      { $set: { pregnancyInfo: null } },
+      { new: true }
+    );
+
+    if (!user) return res.status(404).json({ error: "User not found" });
+    res.json(user);
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 

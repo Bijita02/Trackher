@@ -14,13 +14,23 @@ const cycleInfoSchema = new mongoose.Schema({
   }
 });
 
+const pregnancyInfoSchema = new mongoose.Schema(
+  {
+    dueDate: { type: Date, required: true },
+    lastPeriod: { type: Date }, 
+    startDate: { type: Date, default: Date.now }, 
+  },
+  { _id: false }
+);
+
 const userSchema = new mongoose.Schema({
   name: String,
   email: { type: String, unique: true },
   password: String,
   birthdate: Date,
   created_at: { type: Date, default: Date.now },
-  cycleInfo: { type: cycleInfoSchema, default: () => ({ history: [] }) }
+  cycleInfo: { type: cycleInfoSchema, default: () => ({ history: [] }) },
+  pregnancyInfo: { type: pregnancyInfoSchema, default: null },
 });
 
 module.exports = mongoose.model("User", userSchema);
