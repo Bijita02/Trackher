@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import SymptomsPage from "./pages/SymptomsPage";
 import ChatBot from "./components/chatbot";
 import CycleDetailsPage from './pages/CycleDetailsPage';
+import CycleHistory from './pages/CycleHistory';
 import PregnancyDashboard from "./pages/PregnancyDashboard";
 import PregnancySetup from "./pages/PregnancySetup";
 
@@ -25,9 +26,8 @@ function App() {
           <Route path="/ai" element={<ChatBot />} />
           <Route path="/pregnancy-dashboard" element={<PregnancyDashboard />} />
           <Route path="/pregnancy-setup" element={<PregnancySetup />} />
-          
-          {/* Your Clean Route */}
           <Route path="/cycle-details" element={<CycleDetailsPage />} />
+          <Route path="/cycle-history" element={<CycleHistory />} />
         </Routes>
       </div>
     </Router>

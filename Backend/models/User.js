@@ -1,9 +1,17 @@
 const mongoose = require("mongoose");
 
+const cycleHistorySchema = new mongoose.Schema({
+  date: { type: Date, required: true }
+});
+
 const cycleInfoSchema = new mongoose.Schema({
   lastPeriod: { type: Date },
   cycleLength: { type: Number, default: 28 },
   periodLength: { type: Number, default: 5 },
+  history: {
+    type: [cycleHistorySchema],
+    default: []
+  }
 });
 
 const pregnancyInfoSchema = new mongoose.Schema(
@@ -21,7 +29,7 @@ const userSchema = new mongoose.Schema({
   password: String,
   birthdate: Date,
   created_at: { type: Date, default: Date.now },
-  cycleInfo: { type: cycleInfoSchema, default: () => ({}) },
+  cycleInfo: { type: cycleInfoSchema, default: () => ({ history: [] }) },
   pregnancyInfo: { type: pregnancyInfoSchema, default: null },
 });
 
