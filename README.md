@@ -15,6 +15,7 @@ TrackHer is a smart menstrual wellness companion that combines cycle tracking wi
        npm install recharts
        npm install tailwindcss
        npm install -D tailwindcss @tailwindcss/vite
+       npm install lucide-react
       
 
 ## To Run
