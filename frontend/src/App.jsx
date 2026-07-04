@@ -3,12 +3,11 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Home from "./pages/home";    
 import Register from "./pages/register";
 import Login from "./pages/login";
-import Navbar from "./pages/navbar";
+import Navbar from "./components/navbar";
 import Dashboard from "./pages/Dashboard";
 import SymptomsPage from "./pages/SymptomsPage";
 import ChatBot from "./components/chatbot";
-import CycleDetailsPage from './pages/CycleDetailsPage';
-import CycleHistory from './pages/CycleHistory';
+import CycleDetails from './components/cycledetails';
 import PregnancyDashboard from "./pages/PregnancyDashboard";
 import PregnancySetup from "./pages/PregnancySetup";
 
@@ -26,8 +25,8 @@ function App() {
           <Route path="/ai" element={<ChatBot />} />
           <Route path="/pregnancy-dashboard" element={<PregnancyDashboard />} />
           <Route path="/pregnancy-setup" element={<PregnancySetup />} />
-          <Route path="/cycle-details" element={<CycleDetailsPage />} />
-          <Route path="/cycle-history" element={<CycleHistory />} />
+          <Route path="/cycle-details" element={<CycleDetails />} />
+          
         </Routes>
       </div>
     </Router>

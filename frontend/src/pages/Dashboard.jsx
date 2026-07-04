@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Onboardingmodal from "../components/onboardingmodal";
 import ChatBot from "../components/chatbot";
+import CycleDetails from "../components/cycledetails";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -168,11 +169,11 @@ function Dashboard() {
     <div className="min-h-screen bg-[#FAF7F5] relative">
       {showModal && <Onboardingmodal onClose={handleOnboardingClose} />}
 
-      <div className="max-w-3xl mx-auto p-6">
+      <div className="max-w-6xl mx-auto p-6">
         <div className="mb-8 flex justify-between items-start">
           <div>
             <h1 className="text-xl font-semibold text-gray-800">
-              Good morning{user?.name ? `, ${user.name.split(" ")[0]}` : ""} 🌸
+              Good morning{user?.name ? `, ${user.name.split(" ")[0]}` : ""} 
             </h1>
             <p className="text-sm text-gray-400">Here's your cycle overview</p>
           </div>
@@ -198,86 +199,14 @@ function Dashboard() {
 
         {user?.cycleInfo?.lastPeriod ? (
           <>
-            {/* Today card */}
-            <div className="bg-white rounded-2xl p-6 mb-4 border border-gray-100">
-              <p className="text-base font-semibold text-gray-800">
-                Today · Cycle Day {cycleDay}
-              </p>
-              <p className="text-xs text-gray-400 mt-0.5 mb-5">
-                {getFertilityLabel(currentPhase)}
-              </p>
+           
+          
+            <CycleDetails
+              lastPeriodStart={lastPeriodDate}
+              cycleLength={cycleLength}
+              periodLength={periodLength}
+            />
 
-              <div className="relative pt-6 pb-1">
-                <div className="h-2 rounded-full bg-gray-100 relative overflow-hidden flex">
-                  {segments.map((seg) => (
-                    <div
-                      key={seg.key}
-                      className="absolute top-0 h-full"
-                      style={{ left: `${seg.start}%`, width: `${seg.width}%`, backgroundColor: seg.color }}
-                    />
-                  ))}
-                </div>
-
-                <div
-                  className="absolute -top-1 flex flex-col items-center"
-                  style={{ left: `${todayPct}%`, transform: "translateX(-50%)" }}
-                >
-                  <div className="w-4 h-4 rounded-full bg-white border-2 border-[#7A3349] shadow-sm" />
-                  <span className="text-[10px] font-semibold text-black bg-white px-1.5 rounded mt-1 whitespace-nowrap shadow-sm">
-                    Today
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-4">
-                {PHASES.map((p) => (
-                  <div key={p.key} className="flex items-center gap-1.5">
-                    <span
-                      className="w-2 h-2 rounded-full"
-                      style={{ backgroundColor: p.color }}
-                    />
-                    <span
-                      className={`text-[11px] ${
-                        currentPhase === p.key ? "font-semibold text-gray-700" : "text-gray-400"
-                      }`}
-                    >
-                      {p.label}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Cycle analysis */}
-            <div
-              onClick={handleNavigateToCycleDetails}
-              className="bg-white rounded-2xl p-6 mb-4 border border-gray-100 cursor-pointer hover:border-[#C2597A]/40 transition-colors"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <p className="text-base font-semibold text-gray-800">Cycle analysis</p>
-                  <p className="text-xs text-gray-400 mt-0.5">Based on your current cycle settings</p>
-                </div>
-                <span className="text-gray-300 text-lg">›</span>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div className="bg-[#F6DCE3] rounded-xl p-4">
-                  <p className="text-xl font-semibold text-[#7A3349]">{periodLength}</p>
-                  <p className="text-xs text-[#7A3349]/70 mt-0.5">Period days</p>
-                </div>
-                <div className="bg-[#F5E7BE] rounded-xl p-4">
-                  <p className="text-xl font-semibold text-[#9A5518]">{cycleLength}</p>
-                  <p className="text-xs text-[#9A5518]/70 mt-0.5">Cycle days</p>
-                </div>
-                <div className="bg-gray-50 rounded-xl p-4">
-                  <p className="text-sm font-semibold text-gray-700 mt-1">{formatDate(lastPeriodDate)}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">Last period</p>
-                </div>
-              </div>
-            </div>
-
-            {/* History */}
             <div className="bg-white rounded-2xl p-6 mb-4 border border-gray-100">
               <p className="text-base font-semibold text-gray-800 mb-1">History</p>
               <p className="text-xs text-gray-400 mb-4">
