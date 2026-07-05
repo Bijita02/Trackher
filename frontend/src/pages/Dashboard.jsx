@@ -55,7 +55,7 @@ function Dashboard() {
       console.error(err);
       setShowModal(true);
     } finally {
-      loading && setLoading(false);
+      if (loading) setLoading(false);
     }
   };
 
@@ -92,6 +92,20 @@ function Dashboard() {
     return "luteal";
   };
 
+  const getFertilityLabel = (phaseKey) => {
+    switch (phaseKey) {
+      case "menstrual":
+        return "On your period";
+      case "ovulatory":
+        return "High chance of getting pregnant";
+      case "follicular":
+        return "Low chance of getting pregnant";
+      default:
+        return "Low chance of getting pregnant";
+    }
+  };
+
+  // Fixed the double function declaration conflict error right here
   const handleNavigateToCycleStats = () => {
     if (!user?.cycleInfo) return;
     navigate("/cycle-stats", {
@@ -117,6 +131,27 @@ function Dashboard() {
   const currentPhase = getPhase(cycleDay, periodLength);
   const lastPeriodDate = user?.cycleInfo?.lastPeriod ? new Date(user.cycleInfo.lastPeriod) : null;
 
+  const dayBounds = cycleLength
+    ? {
+        menstrualEnd: Math.min(periodLength, cycleLength),
+        follicularEnd: Math.min(Math.max(13, periodLength), cycleLength),
+        ovulatoryEnd: Math.min(Math.max(15, periodLength), cycleLength),
+      }
+    : { menstrualEnd: 0, follicularEnd: 0, ovulatoryEnd: 0 };
+
+  const toPct = (days) => (cycleLength ? (days / cycleLength) * 100 : 0);
+
+  const segments = cycleLength
+    ? [
+        { ...PHASES[0], start: 0, width: toPct(dayBounds.menstrualEnd) },
+        { ...PHASES[1], start: toPct(dayBounds.menstrualEnd), width: toPct(dayBounds.follicularEnd - dayBounds.menstrualEnd) },
+        { ...PHASES[2], start: toPct(dayBounds.follicularEnd), width: toPct(dayBounds.ovulatoryEnd - dayBounds.follicularEnd) },
+        { ...PHASES[3], start: toPct(dayBounds.ovulatoryEnd), width: 100 - toPct(dayBounds.ovulatoryEnd) },
+      ]
+    : [];
+
+  const todayPct = cycleLength && cycleDay ? Math.min(100, ((cycleDay - 1) / cycleLength) * 100) : 0;
+
   return (
     <div className="min-h-screen bg-[#FAF7F5] relative">
       {showModal && <Onboardingmodal onClose={handleOnboardingClose} />}
@@ -131,11 +166,20 @@ function Dashboard() {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Added missing closing tag below to resolve the layout crash */}
             <button
               onClick={() => navigate('/status-feed')}
               className="text-xs font-semibold text-[#C2597A] bg-[#F6DCE3] px-4 py-2 rounded-xl hover:bg-[#7A3349] hover:text-white transition-colors"
             >
               View Friend Feeds 🌍
+            </button>
+          
+            <button
+              onClick={() => setIsChatOpen(true)}
+              className="w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center text-lg shadow-sm hover:border-[#C2597A] hover:text-[#C2597A] transition-colors"
+              title="Ask Luna"
+            >
+              💬
             </button>
           </div>
         </div>
@@ -254,10 +298,7 @@ function Dashboard() {
         )}
       </div>
 
-      
       <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
-        
-        
         <div className="flex items-center gap-2 group">
           <span className="bg-white text-gray-700 text-[11px] font-medium px-3 py-1.5 rounded-xl shadow-md border border-gray-100 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap">
             Share your current status with your friends
@@ -271,7 +312,6 @@ function Dashboard() {
           </button>
         </div>
 
-        
         <div className="flex items-center gap-2 group">
           <span className="bg-white text-gray-700 text-[11px] font-medium px-3 py-1.5 rounded-xl shadow-md border border-gray-100 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap">
             Share with Luna Bot
@@ -285,7 +325,6 @@ function Dashboard() {
           </button>
         </div>
 
-        
         {isChatOpen && (
           <div className="absolute bottom-16 right-0 z-50 w-80 sm:w-96 shadow-2xl rounded-3xl overflow-hidden bg-white border border-gray-100">
             <ChatBot onClose={() => setIsChatOpen(false)} />
@@ -293,12 +332,11 @@ function Dashboard() {
         )}
       </div>
 
-  
-<StatusPopup 
-  isOpen={isVibeOpen} 
-  onClose={() => setIsVibeOpen(false)} 
-  currentUserName={user?.name || localStorage.getItem("userName") || "Meejala"} 
-/>
+      <StatusPopup 
+        isOpen={isVibeOpen} 
+        onClose={() => setIsVibeOpen(false)} 
+        currentUserName={user?.name || localStorage.getItem("userName") || "Meejala"} 
+      />
     </div>
   );
 }

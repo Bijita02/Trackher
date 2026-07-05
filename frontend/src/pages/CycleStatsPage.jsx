@@ -1,0 +1,260 @@
+import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, BarChart, Bar, Cell,
+} from "recharts";
+import { ChevronLeft } from "lucide-react";
+
+const MS_PER_DAY = 86400000;
+
+const FALLBACK_CYCLE_HISTORY = [
+  { label: "Feb", length: 29 },
+  { label: "Mar", length: 27 },
+  { label: "Apr", length: 28 },
+  { label: "May", length: 30 },
+  { label: "Jun", length: 26 },
+  { label: "Jul", length: 28 },
+];
+
+const FALLBACK_SYMPTOMS = [
+  { name: "Fatigue", count: 15 },
+  { name: "Cramps", count: 12 },
+  { name: "Mood swings", count: 10 },
+  { name: "Headache", count: 8 },
+  { name: "Bloating", count: 7 },
+];
+
+const BAR_COLORS = ["#E23670", "#EB5490", "#F281AB", "#F7A7C6", "#FBCADD"];
+
+export default function CycleStatsPage() {
+  const navigate = useNavigate();
+
+  // Current snapshot values fetched fresh from the backend (not relying on nav state,
+  // so this page works correctly even on a direct visit or page refresh)
+  const [currentCycleLength, setCurrentCycleLength] = useState(28);
+  const [currentPeriodLength, setCurrentPeriodLength] = useState(5);
+
+  const [historyEntries, setHistoryEntries] = useState([]); // [{date, cycleLength, periodLength}]
+  const [symptomCounts, setSymptomCounts] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  const fetchStats = async () => {
+    try {
+      const userId = localStorage.getItem("userId");
+      const token = localStorage.getItem("token");
+
+      if (!userId || !token) {
+        setError("You need to be logged in to view stats.");
+        setLoading(false);
+        return;
+      }
+
+      const res = await fetch(`http://localhost:5000/api/users/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) throw new Error("Failed to fetch user data");
+
+      const data = await res.json();
+
+      if (data.cycleInfo?.cycleLength) setCurrentCycleLength(Number(data.cycleInfo.cycleLength));
+      if (data.cycleInfo?.periodLength) setCurrentPeriodLength(Number(data.cycleInfo.periodLength));
+
+      // Real field: cycleInfo.history = [{ date, cycleLength, periodLength }, ...]
+      const rawHistory = data.cycleInfo?.history || [];
+
+      const seenDays = new Set();
+      const cleaned = rawHistory
+        .map((h) => ({
+          date: new Date(h.date),
+          cycleLength: h.cycleLength ? Number(h.cycleLength) : null,
+          periodLength: h.periodLength ? Number(h.periodLength) : null,
+        }))
+        .filter((h) => !isNaN(h.date))
+        .filter((h) => {
+          const key = h.date.toDateString();
+          if (seenDays.has(key)) return false;
+          seenDays.add(key);
+          return true;
+        })
+        .sort((a, b) => b.date - a.date);
+
+      setHistoryEntries(cleaned);
+
+      // Real field: cycleInfo.symptoms = [{ date, tags: [...], notes, intensity }, ...]
+      const symptomLogs = data.cycleInfo?.symptoms || [];
+      const counts = {};
+      symptomLogs.forEach((entry) => {
+        (entry.tags || []).forEach((tag) => {
+          counts[tag] = (counts[tag] || 0) + 1;
+        });
+      });
+      setSymptomCounts(counts);
+
+    } catch (err) {
+      console.error("Error fetching cycle stats:", err);
+      setError("Could not load your cycle stats. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getAverageCycleLength = () => {
+    const dates = historyEntries.map((h) => h.date);
+    if (dates.length < 2) return currentCycleLength;
+
+    const gaps = [];
+    for (let i = 0; i < dates.length - 1; i++) {
+      const diff = (dates[i] - dates[i + 1]) / MS_PER_DAY;
+      if (diff >= 15 && diff <= 60) gaps.push(diff); // ignore impossible/glitch gaps
+    }
+
+    if (gaps.length === 0) return currentCycleLength;
+    return Math.round(gaps.reduce((a, b) => a + b, 0) / gaps.length);
+  };
+
+  const getAveragePeriodLength = () => {
+    const lengths = historyEntries
+      .map((h) => h.periodLength)
+      .filter((v) => v !== null && v > 0);
+
+    if (lengths.length === 0) return currentPeriodLength;
+    return Math.round(lengths.reduce((a, b) => a + b, 0) / lengths.length);
+  };
+
+  const cycleTrendData = useMemo(() => {
+    const dates = [...historyEntries.map((h) => h.date)].sort((a, b) => a - b);
+    if (dates.length < 2) return FALLBACK_CYCLE_HISTORY;
+
+    const points = [];
+    for (let i = 0; i < dates.length - 1; i++) {
+      const diff = Math.round((dates[i + 1] - dates[i]) / MS_PER_DAY);
+      if (diff >= 15 && diff <= 60) {
+        points.push({
+          label: dates[i].toLocaleDateString("en-US", { month: "short" }),
+          length: diff,
+        });
+      }
+    }
+    return points.length > 0 ? points.slice(-6) : FALLBACK_CYCLE_HISTORY;
+  }, [historyEntries]);
+
+  const symptomChartData = useMemo(() => {
+    const entries = Object.entries(symptomCounts).sort((a, b) => b[1] - a[1]);
+    if (entries.length === 0) return FALLBACK_SYMPTOMS;
+    return entries.slice(0, 5).map(([name, count]) => ({ name, count }));
+  }, [symptomCounts]);
+
+  const usingFallbackSymptoms = Object.keys(symptomCounts).length === 0;
+  const usingFallbackTrend = historyEntries.length < 2;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-sm text-gray-400 animate-pulse">Loading...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+        <p className="text-sm text-gray-500">{error}</p>
+        <button
+          onClick={() => navigate("/dashboard")}
+          className="text-sm font-medium"
+          style={{ color: "#E23670" }}
+        >
+          ← Back to Dashboard
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ fontFamily: "'Inter', sans-serif" }} className="min-h-screen bg-[#FAF7F5] p-6">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap');
+        .fr-display { font-family: 'Fraunces', serif; }
+      `}</style>
+
+      <button
+        onClick={() => navigate("/dashboard")}
+        className="flex items-center gap-1 mb-6 text-sm font-medium"
+        style={{ color: "#E23670" }}
+      >
+        <ChevronLeft size={16} /> Back to Dashboard
+      </button>
+
+      <h1 className="fr-display text-3xl mb-6" style={{ color: "#241220" }}>
+        Cycle Stats
+      </h1>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="rounded-2xl p-6" style={{ background: "#fff", border: "1px solid #FDE3EC" }}>
+          <p className="text-xs mb-1" style={{ color: "#8F8290" }}>Average Cycle Length</p>
+          <h2 className="fr-display text-3xl" style={{ color: "#E23670" }}>
+            {getAverageCycleLength()} days
+          </h2>
+        </div>
+
+        <div className="rounded-2xl p-6" style={{ background: "#fff", border: "1px solid #FDE3EC" }}>
+          <p className="text-xs mb-1" style={{ color: "#8F8290" }}>Average Period Length</p>
+          <h2 className="fr-display text-3xl" style={{ color: "#E23670" }}>
+            {getAveragePeriodLength()} days
+          </h2>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="rounded-2xl p-6" style={{ background: "#fff", border: "1px solid #FDE3EC" }}>
+          <h3 className="fr-display text-lg mb-1" style={{ color: "#241220" }}>Cycle length trend</h3>
+          <p className="text-xs mb-4" style={{ color: "#8F8290" }}>
+            {usingFallbackTrend ? "Sample data — log more cycles to see yours" : "Last 6 cycles"}
+          </p>
+          <ResponsiveContainer width="100%" height={220}>
+            <AreaChart data={cycleTrendData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+              <defs>
+                <linearGradient id="cycleFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#E23670" stopOpacity={0.25} />
+                  <stop offset="100%" stopColor="#E23670" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#FBE7EF" vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#B7A8B1" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 12, fill: "#B7A8B1" }} axisLine={false} tickLine={false} domain={[20, 36]} />
+              <Tooltip contentStyle={{ borderRadius: 10, border: "1px solid #FDE3EC", fontSize: 13 }} />
+              <Area type="monotone" dataKey="length" stroke="#E23670" strokeWidth={2.5} fill="url(#cycleFill)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="rounded-2xl p-6" style={{ background: "#fff", border: "1px solid #FDE3EC" }}>
+          <h3 className="fr-display text-lg mb-1" style={{ color: "#241220" }}>Most logged symptoms</h3>
+          <p className="text-xs mb-4" style={{ color: "#8F8290" }}>
+            {usingFallbackSymptoms ? "Sample data — log symptoms to see yours" : "All time"}
+          </p>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={symptomChartData} layout="vertical" margin={{ top: 5, right: 20, left: 10, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#FBE7EF" horizontal={false} />
+              <XAxis type="number" tick={{ fontSize: 12, fill: "#B7A8B1" }} axisLine={false} tickLine={false} />
+              <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 12, fill: "#241220" }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ borderRadius: 10, border: "1px solid #FDE3EC", fontSize: 13 }} />
+              <Bar dataKey="count" radius={[0, 6, 6, 0]}>
+                {symptomChartData.map((_, i) => (
+                  <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </div>
+  );
+}

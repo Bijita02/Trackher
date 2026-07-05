@@ -1,7 +1,19 @@
 const mongoose = require("mongoose");
 
-const cycleHistorySchema = new mongoose.Schema({
-  date: { type: Date, required: true }
+const cycleHistorySchema = new mongoose.Schema(
+  {
+    date: { type: Date, required: true },
+    cycleLength: { type: Number },
+    periodLength: { type: Number },
+  },
+  { _id: false }
+);
+
+const symptomLogSchema = new mongoose.Schema({
+  date: { type: Date, required: true },
+  tags: { type: [String], default: [] },
+  notes: { type: String, default: "" },
+  intensity: { type: Number, default: 5 },
 });
 
 const cycleInfoSchema = new mongoose.Schema({
@@ -10,15 +22,19 @@ const cycleInfoSchema = new mongoose.Schema({
   periodLength: { type: Number, default: 5 },
   history: {
     type: [cycleHistorySchema],
-    default: []
-  }
+    default: [],
+  },
+  symptoms: {
+    type: [symptomLogSchema],
+    default: [],
+  },
 });
 
 const pregnancyInfoSchema = new mongoose.Schema(
   {
     dueDate: { type: Date, required: true },
-    lastPeriod: { type: Date }, 
-    startDate: { type: Date, default: Date.now }, 
+    lastPeriod: { type: Date },
+    startDate: { type: Date, default: Date.now },
   },
   { _id: false }
 );
@@ -29,7 +45,7 @@ const userSchema = new mongoose.Schema({
   password: String,
   birthdate: Date,
   created_at: { type: Date, default: Date.now },
-  cycleInfo: { type: cycleInfoSchema, default: () => ({ history: [] }) },
+  cycleInfo: { type: cycleInfoSchema, default: () => ({ history: [], symptoms: [] }) },
   pregnancyInfo: { type: pregnancyInfoSchema, default: null },
 });
 
