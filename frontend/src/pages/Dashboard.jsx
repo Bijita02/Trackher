@@ -67,13 +67,6 @@ function Dashboard() {
     await fetchUser();
   };
 
-  const getNextPeriod = () => {
-    if (!user?.cycleInfo?.lastPeriod) return null;
-    const next = new Date(user.cycleInfo.lastPeriod);
-    next.setDate(next.getDate() + Number(user.cycleInfo.cycleLength));
-    return next;
-  };
-
   const getCycleDay = () => {
     if (!user?.cycleInfo?.lastPeriod) return null;
     const cycleLength = Number(user.cycleInfo.cycleLength);
@@ -111,12 +104,9 @@ function Dashboard() {
     }
   };
 
-  const formatDate = (d) =>
-    d?.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-
-  const handleNavigateToCycleDetails = () => {
+  const handleNavigateToCycleStats = () => {
     if (!user?.cycleInfo) return;
-    navigate("/cycle-details", {
+    navigate("/cycle-stats", {
       state: {
         lastPeriodDate: user.cycleInfo.lastPeriod,
         cycleLength: Number(user.cycleInfo.cycleLength),
@@ -160,11 +150,6 @@ function Dashboard() {
 
   const todayPct = cycleLength && cycleDay ? Math.min(100, ((cycleDay - 1) / cycleLength) * 100) : 0;
 
-  // History end date for the current cycle's period
-  const periodEndDate = lastPeriodDate
-    ? new Date(lastPeriodDate.getTime() + (periodLength - 1) * MS_PER_DAY)
-    : null;
-
   return (
     <div className="min-h-screen bg-[#FAF7F5] relative">
       {showModal && <Onboardingmodal onClose={handleOnboardingClose} />}
@@ -180,9 +165,9 @@ function Dashboard() {
 
           <div className="flex items-center gap-3">
             <button
-              onClick={handleNavigateToCycleDetails}
+              onClick={handleNavigateToCycleStats}
               className="w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center text-lg shadow-sm hover:border-[#C2597A] hover:text-[#C2597A] transition-colors"
-              title="View Cycle Sheet History"
+              title="View Cycle Stats & History"
             >
               📜
             </button>
@@ -199,36 +184,41 @@ function Dashboard() {
 
         {user?.cycleInfo?.lastPeriod ? (
           <>
-           
-          
+
             <CycleDetails
               lastPeriodStart={lastPeriodDate}
               cycleLength={cycleLength}
               periodLength={periodLength}
             />
 
-            <div className="bg-white rounded-2xl p-6 mb-4 border border-gray-100">
-              <p className="text-base font-semibold text-gray-800 mb-1">History</p>
-              <p className="text-xs text-gray-400 mb-4">
-                Your logged cycle — full history coming soon
-              </p>
-
-              <div className="flex items-center justify-between py-2">
-                <p className="text-sm text-gray-700">
-                  {formatDate(lastPeriodDate)} – {formatDate(periodEndDate)}
-                </p>
-                <span className="text-xs font-medium text-[#7A3349] bg-[#F6DCE3] rounded-full px-2.5 py-1">
-                  {periodLength} days
-                </span>
+            <button
+              onClick={handleNavigateToCycleStats}
+              className="w-full bg-white rounded-2xl p-6 mb-4 border border-gray-100 text-left hover:border-[#C2597A]/40 hover:shadow-sm transition-all group"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-base font-semibold text-gray-800 mb-1">
+                    Cycle Stats & Phase History
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    Trends, averages, and most logged symptoms
+                  </p>
+                </div>
+                <svg
+                  className="w-4 h-4 text-gray-300 group-hover:text-[#C2597A] transition-colors"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5l7 7-7 7"
+                  />
+                </svg>
               </div>
-
-              <button
-                onClick={handleNavigateToCycleDetails}
-                className="text-xs font-medium text-[#C2597A] mt-3 hover:text-[#7A3349] transition-colors"
-              >
-                View full calendar & phase history →
-              </button>
-            </div>
+            </button>
 
             <button
               onClick={() => navigate("/symptoms")}

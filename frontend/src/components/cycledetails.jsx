@@ -1,28 +1,5 @@
 import React, { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Droplet, Sparkles, Leaf, Moon } from "lucide-react";
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, BarChart, Bar, Cell,
-} from "recharts";
-
-// ---------- Fallback mock data (used only if no real data is passed in) ----------
-const CYCLE_HISTORY = [
-  { label: "Feb", length: 29 },
-  { label: "Mar", length: 27 },
-  { label: "Apr", length: 28 },
-  { label: "May", length: 30 },
-  { label: "Jun", length: 26 },
-  { label: "Jul", length: 28 },
-];
-
-const SYMPTOM_FREQUENCY = [
-  { name: "Fatigue", count: 15 },
-  { name: "Cramps", count: 12 },
-  { name: "Mood swings", count: 10 },
-  { name: "Headache", count: 8 },
-  { name: "Bloating", count: 7 },
-];
-// ------------------------------------------------------------
 
 const PHASE = {
   menstrual: { label: "Menstrual", color: "#E23670", soft: "#FCE1EA", icon: Droplet },
@@ -180,52 +157,10 @@ export default function Cycledetails({ lastPeriodStart, cycleLength, periodLengt
             </p>
           </div>
         </div>
-
-        {/* Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-          <div className="rounded-2xl p-6" style={{ background: "#fff", border: "1px solid #FDE3EC" }}>
-            <h3 className="fr-display text-lg mb-1" style={{ color: "#241220" }}>Cycle length trend</h3>
-            <p className="text-xs mb-4" style={{ color: "#8F8290" }}>Last 6 cycles</p>
-            <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={CYCLE_HISTORY} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="cycleFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#E23670" stopOpacity={0.25} />
-                    <stop offset="100%" stopColor="#E23670" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#FBE7EF" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#B7A8B1" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 12, fill: "#B7A8B1" }} axisLine={false} tickLine={false} domain={[24, 32]} />
-                <Tooltip contentStyle={{ borderRadius: 10, border: "1px solid #FDE3EC", fontSize: 13 }} />
-                <Area type="monotone" dataKey="length" stroke="#E23670" strokeWidth={2.5} fill="url(#cycleFill)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="rounded-2xl p-6" style={{ background: "#fff", border: "1px solid #FDE3EC" }}>
-            <h3 className="fr-display text-lg mb-1" style={{ color: "#241220" }}>Most logged symptoms</h3>
-            <p className="text-xs mb-4" style={{ color: "#8F8290" }}>Past 6 cycles</p>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={SYMPTOM_FREQUENCY} layout="vertical" margin={{ top: 5, right: 20, left: 10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#FBE7EF" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 12, fill: "#B7A8B1" }} axisLine={false} tickLine={false} />
-                <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 12, fill: "#241220" }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ borderRadius: 10, border: "1px solid #FDE3EC", fontSize: 13 }} />
-                <Bar dataKey="count" radius={[0, 6, 6, 0]}>
-                  {SYMPTOM_FREQUENCY.map((_, i) => (
-                    <Cell key={i} fill={["#E23670", "#EB5490", "#F281AB", "#F7A7C6", "#FBCADD"][i % 5]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
       </div>
     </div>
   );
 }
-
 
 function PhaseRing({ cycle, today, phase }) {
   const size = 160;

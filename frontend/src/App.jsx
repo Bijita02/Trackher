@@ -10,6 +10,7 @@ import ChatBot from "./components/chatbot";
 import CycleDetails from './components/cycledetails';
 import PregnancyDashboard from "./pages/PregnancyDashboard";
 import PregnancySetup from "./pages/PregnancySetup";
+import CycleStatsPage from "./pages/CycleStatsPage";
 
 function App() {
   return (
@@ -26,6 +27,7 @@ function App() {
           <Route path="/pregnancy-dashboard" element={<PregnancyDashboard />} />
           <Route path="/pregnancy-setup" element={<PregnancySetup />} />
           <Route path="/cycle-details" element={<CycleDetails />} />
+                    <Route path="/cycle-stats" element={<CycleStatsPage />} />
           
         </Routes>
       </div>
