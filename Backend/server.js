@@ -181,6 +181,9 @@ app.get("/api/users/:id", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+const statusRoutes = require('./routes/statusRoutes');
+app.use('/api/status', statusRoutes);
+
 
 app.use("/api/symptoms", symptomsRoute); 
 

@@ -10,6 +10,8 @@ import ChatBot from "./components/chatbot";
 import CycleDetails from './components/cycledetails';
 import PregnancyDashboard from "./pages/PregnancyDashboard";
 import PregnancySetup from "./pages/PregnancySetup";
+import StatusFeed from "./pages/StatusFeed";
+
 
 function App() {
   return (
@@ -21,6 +23,7 @@ function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<Login />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/status-feed" element={<StatusFeed />} />
           <Route path="/symptoms" element={<SymptomsPage token={localStorage.getItem("token")} />} />
           <Route path="/ai" element={<ChatBot />} />
           <Route path="/pregnancy-dashboard" element={<PregnancyDashboard />} />
