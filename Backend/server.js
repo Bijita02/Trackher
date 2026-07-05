@@ -9,6 +9,7 @@ const validator = require("validator");
 const User = require("./models/User");
 const symptomsRoute = require("./routes/SymptomsRoute"); 
 const AiChatRoute = require("./routes/AiChatRoute");
+const statusRoutes = require('./Routes/statusRoutes');
 
 const app = express();
 
@@ -19,10 +20,31 @@ mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB Connected"))
   .catch(err => console.log(err));
 
+// Helper function to verify incoming authentication tokens
+function verifyToken(req) {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) {
+    const err = new Error("No token provided");
+    err.status = 401;
+    throw err;
+  }
+  try {
+    return jwt.verify(token, process.env.JWT_SECRET);
+  } catch {
+    const err = new Error("Invalid token authentication structure");
+    err.status = 401;
+    throw err;
+  }
+}
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const TOTAL_PREGNANCY_DAYS = 280; 
+
 app.get("/", (req, res) => {
   res.send("Backend server is running");
 });
 
+// AUTHENTICATION: Register Route
 app.post("/api/register", async (req, res) => {
   try {
     const { name, email, password, birthdate } = req.body;
@@ -42,82 +64,76 @@ app.post("/api/register", async (req, res) => {
   }
 });
 
+// AUTHENTICATION: Login Route
 app.post("/api/login", async (req, res) => {
   try {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
     if (!user) return res.status(401).json({ error: "User not found" });
+    
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(401).json({ error: "Invalid password" });
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
-    res.json({ message: "Login successful", token, userId: user._id });
+    
+    // Cast the MongoDB ID into a clean string format to ensure payload matching
+    const userIdString = user._id.toString();
+
+    // Map both standard id formats into the payload dictionary footprint
+    const token = jwt.sign(
+      { id: userIdString, _id: userIdString }, 
+      process.env.JWT_SECRET, 
+      { expiresIn: "1h" }
+    );
+    
+    res.json({ message: "Login successful", token, userId: userIdString });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
+// FIXED: Saves Onboarding Cycle Configuration safely via Auth Token payload
 app.post("/api/user-cycle", async (req, res) => {
   try {
-    const { userId, lastPeriod, cycleLength, periodLength } = req.body;
+    const decoded = verifyToken(req);
+    const { lastPeriod, cycleLength, periodLength } = req.body;
 
-    if (!userId) {
-      return res.status(400).json({ error: "User ID missing" });
+    const targetUserId = decoded.id || decoded._id;
+    if (!targetUserId) {
+      return res.status(400).json({ error: "User ID missing from authentication token" });
     }
 
-    const updatedUser = await mongoose.connection.collection("users").findOneAndUpdate(
-      { _id: new mongoose.Types.ObjectId(userId) },
+    const updatedUser = await User.findByIdAndUpdate(
+      targetUserId,
       {
         $set: {
           "cycleInfo.lastPeriod": new Date(lastPeriod),
           "cycleInfo.cycleLength": Number(cycleLength),
           "cycleInfo.periodLength": Number(periodLength),
         },
-
         $push: {
           "cycleInfo.history": {
             date: new Date(lastPeriod),
           },
         },
       },
-      {
-        returnDocument: "after",
-      }
+      { new: true }
     );
 
-    if (!updatedUser.value) {
-      return res.status(404).json({ error: "User not found" });
+    if (!updatedUser) {
+      return res.status(404).json({ error: "User matching this token footprint not found" });
     }
 
     res.json({
       message: "Cycle updated successfully",
-      user: updatedUser.value,
+      user: updatedUser,
     });
 
   } catch (err) {
     console.error("Cycle update error:", err);
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
-function verifyToken(req) {
-  const token = req.headers.authorization?.split(" ")[1];
-  if (!token) {
-    const err = new Error("No token");
-    err.status = 401;
-    throw err;
-  }
-  try {
-    return jwt.verify(token, process.env.JWT_SECRET);
-  } catch {
-    const err = new Error("Invalid token");
-    err.status = 401;
-    throw err;
-  }
-}
-
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const TOTAL_PREGNANCY_DAYS = 280; 
-
+// PREGNANCY: Update Setup Route
 app.post("/api/pregnancy-info", async (req, res) => {
   try {
     const decoded = verifyToken(req);
@@ -137,7 +153,7 @@ app.post("/api/pregnancy-info", async (req, res) => {
     }
 
     const user = await User.findByIdAndUpdate(
-      decoded.id,
+      decoded.id || decoded._id,
       {
         pregnancyInfo: {
           dueDate: resolvedDueDate,
@@ -155,12 +171,13 @@ app.post("/api/pregnancy-info", async (req, res) => {
   }
 });
 
+// PREGNANCY: Removal Reset Route
 app.delete("/api/pregnancy-info", async (req, res) => {
   try {
     const decoded = verifyToken(req);
 
     const user = await User.findByIdAndUpdate(
-      decoded.id,
+      decoded.id || decoded._id,
       { $set: { pregnancyInfo: null } },
       { new: true }
     );
@@ -172,6 +189,7 @@ app.delete("/api/pregnancy-info", async (req, res) => {
   }
 });
 
+// CORE USER: Fetch Profile Context Details Route
 app.get("/api/users/:id", async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
@@ -181,12 +199,10 @@ app.get("/api/users/:id", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-const statusRoutes = require('./routes/statusRoutes');
+
+// MOUNTING REGISTERED SYSTEM ROUTERS
 app.use('/api/status', statusRoutes);
-
-
 app.use("/api/symptoms", symptomsRoute); 
-
 app.use("/api/ai", AiChatRoute);
 
 const PORT = process.env.PORT || 5000;

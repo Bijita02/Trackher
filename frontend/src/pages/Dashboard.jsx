@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Onboardingmodal from "../components/onboardingmodal";
 import ChatBot from "../components/chatbot";
 import CycleDetails from "../components/cycledetails";
-import StatusPopup from "../components/statuspopup"; // Added StatusPopup import
+import StatusPopup from "../components/statuspopup";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const POSTPARTUM_BUFFER_DAYS = 42;
@@ -14,16 +14,17 @@ function Dashboard() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isChatOpen, setIsChatOpen] = useState(false);
-  const [isVibeOpen, setIsVibeOpen] = useState(false); // Added state for Vibe Check Popup
+  const [isVibeOpen, setIsVibeOpen] = useState(false);
 
   const fetchUser = async () => {
     try {
       const userId = localStorage.getItem("userId");
       const token = localStorage.getItem("token");
 
+      // FIXED: If user context details are missing, instantly redirect to /login
       if (!userId || !token) {
-        setShowModal(true);
         setLoading(false);
+        navigate("/login", { replace: true });
         return;
       }
 
@@ -31,7 +32,13 @@ function Dashboard() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      if (!res.ok) throw new Error("Failed to fetch user");
+      // If the token is invalid or expired on the server, clear storage and redirect
+      if (!res.ok) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("userId");
+        navigate("/login", { replace: true });
+        return;
+      }
 
       const data = await res.json();
       setUser(data);
@@ -105,7 +112,6 @@ function Dashboard() {
     }
   };
 
-  // Fixed the double function declaration conflict error right here
   const handleNavigateToCycleStats = () => {
     if (!user?.cycleInfo) return;
     navigate("/cycle-stats", {
@@ -166,7 +172,6 @@ function Dashboard() {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Added missing closing tag below to resolve the layout crash */}
             <button
               onClick={() => navigate('/status-feed')}
               className="text-xs font-semibold text-[#C2597A] bg-[#F6DCE3] px-4 py-2 rounded-xl hover:bg-[#7A3349] hover:text-white transition-colors"

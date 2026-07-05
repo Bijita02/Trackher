@@ -1,70 +1,210 @@
 import express from "express";
-import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
 import User from "../models/User.js";
+import jwt from "jsonwebtoken";
 
 const router = express.Router();
 
-//Register Route
-router.post("/register", async (req, res) => {
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const TOTAL_PREGNANCY_DAYS = 280; 
+
+const auth = (req, res, next) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) return res.status(401).json({ error: "No token" });
   try {
-    const { email, password } = req.body;
-    const hashed = await bcrypt.hash(password, 10);
-    const user = await User.create({ email, password: hashed });
-    res.json({ _id: user._id, email: user.email });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
+    req.user = jwt.verify(token, process.env.JWT_SECRET);
+    next();
+  } catch {
+    res.status(401).json({ error: "Invalid token" });
   }
-});
+};
 
-//Login Route
-router.post("/login", async (req, res) => {
+// ==========================================
+// FIXED FIXED FIXED: Saves cycle info safely
+// ==========================================
+router.post("/user-cycle", auth, async (req, res) => {
   try {
-    const { email, password } = req.body;
-    const user = await User.findOne({ email });
-    if (!user) return res.status(401).json({ error: "User not found" });
+    const { lastPeriod, cycleLength, periodLength } = req.body;
+    
+    // Checks for both formats since the JWT token payload might use ._id instead of .id
+    const targetUserId = req.user.id || req.user._id; 
 
-    const match = await bcrypt.compare(password, user.password);
-    if (!match) return res.status(401).json({ error: "Wrong password" });
+    if (!targetUserId) {
+      return res.status(400).json({ error: "User ID missing from token payload" });
+    }
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "7d",
-    });
+    const user = await User.findByIdAndUpdate(
+      targetUserId,
+      { cycleInfo: { lastPeriod, cycleLength, periodLength } },
+      { new: true }
+    );
 
-    res.json({ token, userId: user._id });
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json(user);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-router.put("/:id", async (req, res) => {
+router.post("/pregnancy-info", auth, async (req, res) => {
   try {
-    const { id } = req.params;
-    const { lastPeriod } = req.body; // Incoming date string from frontend (e.g., "2026-06-15")
+    const { dueDate, lastPeriod } = req.body;
 
-    if (!lastPeriod) {
-      return res.status(400).json({ error: "No date provided" });
+    let resolvedDueDate;
+    if (dueDate) {
+      resolvedDueDate = new Date(dueDate);
+    } else if (lastPeriod) {
+      resolvedDueDate = new Date(new Date(lastPeriod).getTime() + TOTAL_PREGNANCY_DAYS * MS_PER_DAY);
+    } else {
+      return res.status(400).json({ error: "Provide either dueDate or lastPeriod" });
     }
 
-    const updatedUser = await User.findByIdAndUpdate(
-      id,
+    if (Number.isNaN(resolvedDueDate.getTime())) {
+      return res.status(400).json({ error: "Invalid date" });
+    }
+
+    // Fixed fallback here too just in case!
+    const targetUserId = req.user.id || req.user._id;
+
+    const user = await User.findByIdAndUpdate(
+      targetUserId,
       {
-        $set: {
-          "cycleInfo.lastPeriod": new Date(lastPeriod),
+        pregnancyInfo: {
+          dueDate: resolvedDueDate,
+          lastPeriod: lastPeriod ? new Date(lastPeriod) : undefined,
+          startDate: new Date(),
         },
       },
       { new: true }
     );
 
-    if (!updatedUser) {
-      return res.status(404).json({ error: "User configuration profile data not found" });
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete("/pregnancy-info", auth, async (req, res) => {
+  try {
+    const targetUserId = req.user.id || req.user._id;
+    const user = await User.findByIdAndUpdate(
+      targetUserId,
+      { $set: { pregnancyInfo: null } },
+      { new: true }
+    );
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Gets user
+router.get("/users/:id", auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Log symptoms for a date
+router.post("/symptoms", auth, async (req, res) => {
+  try {
+    const { date, tags, notes, intensity } = req.body;
+
+    if (!date) {
+      return res.status(400).json({ error: "Date is required" });
     }
 
-    res.json({
-      success: true,
-      message: "Cycle history synchronized successfully!",
-      lastPeriodDate: updatedUser.cycleInfo.lastPeriod,
-    });
+    if (!Array.isArray(tags) || tags.length === 0) {
+      return res.status(400).json({ error: "At least one symptom tag is required" });
+    }
+
+    const targetUserId = req.user.id || req.user._id;
+
+    const user = await User.findByIdAndUpdate(
+      targetUserId,
+      {
+        $push: {
+          "cycleInfo.symptoms": {
+            date: new Date(date),
+            tags,
+            notes: notes || "",
+            intensity: intensity || 5,
+          },
+        },
+      },
+      { new: true }
+    );
+
+    res.json(user.cycleInfo.symptoms);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get all logged symptoms for the user
+router.get("/symptoms", auth, async (req, res) => {
+  try {
+    const targetUserId = req.user.id || req.user._id;
+    const user = await User.findById(targetUserId);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const symptoms = user.cycleInfo?.symptoms || [];
+    const sorted = [...symptoms].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    res.json(sorted);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete a specific symptom log by its MongoDB _id
+router.delete("/symptoms/:symptomId", auth, async (req, res) => {
+  try {
+    const targetUserId = req.user.id || req.user._id;
+    const user = await User.findByIdAndUpdate(
+      targetUserId,
+      {
+        $pull: {
+          "cycleInfo.symptoms": { _id: req.params.symptomId },
+        },
+      },
+      { new: true }
+    );
+
+    res.json(user.cycleInfo.symptoms);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update a specific symptom log by its MongoDB _id
+router.put("/symptoms/:symptomId", auth, async (req, res) => {
+  try {
+    const { date, tags, notes, intensity } = req.body;
+    const targetUserId = req.user.id || req.user._id;
+
+    const user = await User.findOneAndUpdate(
+      {
+        _id: targetUserId,
+        "cycleInfo.symptoms._id": req.params.symptomId,
+      },
+      {
+        $set: {
+          "cycleInfo.symptoms.$.date": new Date(date),
+          "cycleInfo.symptoms.$.tags": tags,
+          "cycleInfo.symptoms.$.notes": notes || "",
+          "cycleInfo.symptoms.$.intensity": intensity || 5,
+        },
+      },
+      { new: true }
+    );
+
+    res.json(user.cycleInfo.symptoms);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

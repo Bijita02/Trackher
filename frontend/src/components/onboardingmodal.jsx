@@ -21,46 +21,57 @@ const Onboardingmodal = ({ onClose }) => {
   const handleConfirm = async () => {
     setSaving(true);
     try {
-      const userId = localStorage.getItem("userId");
-      const token = localStorage.getItem("token");
+      let token = localStorage.getItem("token");
 
-      console.log("Sending:", { userId, ...formData });
+      if (!token) {
+        throw new Error("Authentication token missing from session storage.");
+      }
+
+      // Sanitize the token string if it accidentally already contains the Bearer prefix
+      if (token.startsWith("Bearer ")) {
+        token = token.slice(7).trim();
+      }
 
       const res = await fetch("http://localhost:5000/api/user-cycle", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify({
-          userId,
           lastPeriod: formData.lastPeriod,
           cycleLength: Number(formData.cycleLength),
           periodLength: Number(formData.periodLength),
         }),
       });
 
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Failed to save cycle configuration");
+      }
+
       const data = await res.json();
-      console.log("Saved:", data);
+      console.log("Saved successfully:", data);
 
       onClose(); 
+      window.location.reload();
 
     } catch (err) {
-      console.error("Failed to save:", err);
+      console.error("Failed to save:", err.message || err);
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/30 flex justify-center items-center p-4 z-50">
-      <div className="bg-white rounded-2xl w-full max-w-md p-8 border border-gray-100">
+    <div className="fixed inset-0 bg-black/30 flex justify-center items-center p-4 z-50 backdrop-blur-xs">
+      <div className="bg-white rounded-2xl w-full max-w-md p-8 border border-gray-100 shadow-xl">
 
         {!confirming ? (
           <>
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-9 h-9 rounded-full bg-pink-50 flex items-center justify-center shrink-0">
-                <span className="text-lg"></span>
+              <div className="w-9 h-9 rounded-full bg-[#F6DCE3] flex items-center justify-center shrink-0">
+                <span className="text-lg">🌸</span>
               </div>
               <div>
                 <h2 className="text-base font-semibold text-gray-800 leading-tight">
@@ -79,8 +90,8 @@ const Onboardingmodal = ({ onClose }) => {
                 </label>
                 <input
                   type="date"
-                  className={`w-full border rounded-lg px-3 py-2.5 text-sm bg-gray-50 text-gray-700 focus:outline-none focus:ring-2 focus:ring-pink-200 ${
-                    dateError ? "border-pink-300" : "border-gray-200"
+                  className={`w-full border rounded-lg px-3 py-2.5 text-sm bg-gray-50 text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#F6DCE3] ${
+                    dateError ? "border-[#C2597A]" : "border-gray-200"
                   }`}
                   value={formData.lastPeriod}
                   onChange={(e) => {
@@ -89,7 +100,7 @@ const Onboardingmodal = ({ onClose }) => {
                   }}
                 />
                 {dateError && (
-                  <p className="text-xs text-pink-400 mt-1">
+                  <p className="text-xs text-[#C2597A] mt-1">
                     Please select a date to continue.
                   </p>
                 )}
@@ -98,7 +109,7 @@ const Onboardingmodal = ({ onClose }) => {
               <div>
                 <label className="flex justify-between text-sm text-gray-500 mb-1.5">
                   <span>Average cycle length</span>
-                  <span className="font-medium text-pink-500">
+                  <span className="font-medium text-[#C2597A]">
                     {formData.cycleLength} days
                   </span>
                 </label>
@@ -111,7 +122,7 @@ const Onboardingmodal = ({ onClose }) => {
                   onChange={(e) =>
                     setFormData({ ...formData, cycleLength: Number(e.target.value) })
                   }
-                  className="w-full accent-pink-400"
+                  className="w-full accent-[#C2597A]"
                 />
                 <div className="flex justify-between text-xs text-gray-300 mt-1">
                   <span>21 days</span>
@@ -122,7 +133,7 @@ const Onboardingmodal = ({ onClose }) => {
               <div>
                 <label className="flex justify-between text-sm text-gray-500 mb-1.5">
                   <span>Period length</span>
-                  <span className="font-medium text-pink-500">
+                  <span className="font-medium text-[#C2597A]">
                     {formData.periodLength} days
                   </span>
                 </label>
@@ -135,7 +146,7 @@ const Onboardingmodal = ({ onClose }) => {
                   onChange={(e) =>
                     setFormData({ ...formData, periodLength: Number(e.target.value) })
                   }
-                  className="w-full accent-pink-400"
+                  className="w-full accent-[#C2597A]"
                 />
                 <div className="flex justify-between text-xs text-gray-300 mt-1">
                   <span>2 days</span>
@@ -146,7 +157,7 @@ const Onboardingmodal = ({ onClose }) => {
 
             <button
               onClick={handleContinue}
-              className="w-full bg-pink-400 hover:bg-pink-500 text-white font-medium py-2.5 rounded-lg transition-colors text-sm"
+              className="w-full bg-[#C2597A] hover:bg-[#7A3349] text-white font-medium py-2.5 rounded-lg transition-colors text-sm shadow-sm"
             >
               Continue →
             </button>
@@ -167,11 +178,11 @@ const Onboardingmodal = ({ onClose }) => {
               <div className="flex justify-between py-2 border-b border-gray-100">
                 <span className="text-gray-500">Last period</span>
                 <span className="font-medium text-gray-700">
-                  {new Date(formData.lastPeriod).toLocaleDateString("en-US", {
+                  {formData.lastPeriod ? new Date(formData.lastPeriod).toLocaleDateString("en-US", {
                     month: "long",
                     day: "numeric",
                     year: "numeric",
-                  })}
+                  }) : ""}
                 </span>
               </div>
               <div className="flex justify-between py-2 border-b border-gray-100">
@@ -198,7 +209,7 @@ const Onboardingmodal = ({ onClose }) => {
               <button
                 onClick={handleConfirm}
                 disabled={saving}
-                className="flex-1 bg-pink-400 hover:bg-pink-500 text-white font-medium py-2.5 rounded-lg text-sm transition-colors disabled:opacity-60"
+                className="flex-1 bg-[#C2597A] hover:bg-[#7A3349] text-white font-medium py-2.5 rounded-lg text-sm transition-colors disabled:opacity-60 shadow-sm"
               >
                 {saving ? "Saving..." : "Yes, save it"}
               </button>
