@@ -164,14 +164,7 @@ function Dashboard() {
           </div>
 
           <div className="flex items-center gap-3">
-            <button
-              onClick={handleNavigateToCycleStats}
-              className="w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center text-lg shadow-sm hover:border-[#C2597A] hover:text-[#C2597A] transition-colors"
-              title="View Cycle Stats & History"
-            >
-              📜
-            </button>
-
+          
             <button
               onClick={() => setIsChatOpen(true)}
               className="w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center text-lg shadow-sm hover:border-[#C2597A] hover:text-[#C2597A] transition-colors"
