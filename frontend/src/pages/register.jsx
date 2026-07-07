@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import logo from "../assets/logo.png";
-import { FaEye, FaEyeSlash } from "react-icons/fa";
+import { FaEye, FaEyeSlash, FaUser, FaEnvelope, FaLock, FaCalendarAlt, FaArrowRight } from "react-icons/fa";
 
 const Register = () => {
   const navigate= useNavigate();
@@ -14,9 +14,10 @@ const Register = () => {
   });
   const [message, setMessage] = useState("");
   
-const [showPassword, setShowPassword] = useState(false);
-
-const handleChange = (e) => {
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  
+  const handleChange = (e) => {
   let value = e.target.value;
 
   if (e.target.name === "name") {
@@ -32,6 +33,7 @@ const handleChange = (e) => {
   const handleSubmit = async (e) => {
   e.preventDefault();
   setMessage("");
+  setLoading(true);
 
   try {
     const formattedData = {
@@ -68,99 +70,116 @@ const handleChange = (e) => {
 };
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center bg-gray-100 overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center bg-[#FDF6F3] px-4 py-12">
 
-      <div className="absolute w-72 h-72 bg-pink-300 rounded-full blur-3xl opacity-40 top-10 left-10"></div>
-      <div className="absolute w-72 h-72 bg-purple-300 rounded-full blur-3xl opacity-40 bottom-10 right-10"></div>
-      <div className="absolute w-72 h-72 bg-rose-300 rounded-full blur-3xl opacity-40 top-1/2 left-1/2"></div>
-      
-      <div className="relative bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
+      <div className="w-full max-w-md">
 
-        <div className="flex justify-center mb-6">
-          <img src={logo} alt="TrackHer Logo" className="h-16" />
+        
+        <div className="flex justify-center mb-5">
+          <span className="bg-pink-100 text-pink-600 text-xs font-semibold px-4 py-1.5 rounded-full">
+            Join TrackHer today
+          </span>
         </div>
 
-        <h2 className="text-2xl font-bold text-center text-gray-800 mb-6">
-          Create Your Account
-        </h2>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-
-          <input
-            type="text"
-            name="name"
-            value={formData.name}
-            placeholder="Full Name"
-            onChange={handleChange}
-            required
-            className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-400"
-          />
-
-          <input
-            type="email"
-            name="email"
-            value={formData.email}
-            placeholder="Email Address"
-            onChange={handleChange}
-            required
-            className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-400"
-          />
-
-          <div className="relative">
-  <input
-    type={showPassword ? "text" : "password"}
-    name="password"
-    value={formData.password}
-    placeholder="Password"
-    onChange={handleChange}
-    required
-    className="w-full px-4 py-3 pr-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-400"
-  />
-
-  <button
-    type="button"
-    onClick={() => setShowPassword(!showPassword)}
-    className="absolute inset-y-0 right-3 flex items-center text-gray-500 hover:text-pink-500"
-  >
-    {showPassword ? <FaEyeSlash /> : <FaEye />}
-  </button>
-</div>
-         
-          <input
-            type="date"
-            name="birthdate"
-            value={formData.birthdate}
-            placeholder="Birthday (YYYY/MM/DD)"
-            onChange={handleChange}
-            required
-            className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-400"
-          />
-
-          <button
-            type="submit"
-            className="w-full bg-pink-500 text-white py-3 rounded-lg font-semibold hover:bg-pink-600 transition duration-300"
-          >
-            Register
-          </button>
-        </form>
-       
-        {message && (
-          <p className="text-sm text-center font-medium mt-4 text-gray-700">
-            {message}
-          </p>
-        )}
-
-        <p className="text-sm text-center text-gray-500 mt-4">
-          Already have an account?{" "}
-          <Link to="/login" className="text-pink-500 font-medium">
-            Login
-          </Link>
-        </p>
         
-        <div className="flex flex-col items-center">
-          <div className="mt-6 w-full">
-            {/*<GoogleLogin /> */}
-          </div>
+        <h1 className="font-serif text-4xl text-center text-gray-900 mb-2 leading-tight">
+          Create your account
+        </h1>
+        <p className="text-center text-gray-500 mb-8">
+          Start understanding your cycle, phase by phase.
+        </p>
+
+       
+        <div className="bg-white border border-gray-200 rounded-2xl p-8">
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+
+            <div className="relative">
+              <FaUser className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm" />
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                placeholder="Full Name"
+                onChange={handleChange}
+                required
+                className="w-full pl-11 pr-4 py-3 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-pink-300 focus:border-pink-400 transition-all"
+              />
+            </div>
+
+            <div className="relative">
+              <FaEnvelope className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm" />
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                placeholder="Email Address"
+                onChange={handleChange}
+                required
+                className="w-full pl-11 pr-4 py-3 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-pink-300 focus:border-pink-400 transition-all"
+              />
+            </div>
+
+            <div className="relative">
+              <FaLock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm" />
+              <input
+                type={showPassword ? "text" : "password"}
+                name="password"
+                value={formData.password}
+                placeholder="Password"
+                onChange={handleChange}
+                required
+                className="w-full pl-11 pr-10 py-3 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-pink-300 focus:border-pink-400 transition-all"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-4 flex items-center text-gray-400 hover:text-pink-500 transition-colors"
+              >
+                {showPassword ? <FaEyeSlash /> : <FaEye />}
+              </button>
+            </div>
+
+            <div className="relative">
+              <FaCalendarAlt className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none" />
+              <input
+                type="date"
+                name="birthdate"
+                value={formData.birthdate}
+                onChange={handleChange}
+                required
+                className="w-full pl-11 pr-4 py-3 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-pink-300 focus:border-pink-400 transition-all text-gray-600"
+              />
+            </div>
+
+            
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-pink-500 text-white py-3 rounded-full font-semibold hover:bg-pink-600 active:scale-[0.98] transition-all duration-200 disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              {loading ? "Creating account..." : (
+                <>
+                  Register <FaArrowRight className="text-sm" />
+                </>
+              )}
+            </button>
+          </form>
+
+          {message && (
+            <p className={`text-sm text-center font-medium mt-4 ${
+              message.startsWith("Success") ? "text-green-600" : "text-red-500"
+            }`}>
+              {message}
+            </p>
+          )}
+
+          <p className="text-sm text-center text-gray-500 mt-5">
+            Already have an account?{" "}
+            <Link to="/login" className="text-pink-500 font-semibold hover:underline">
+              Login
+            </Link>
+          </p>
         </div>
       </div>
     </div>

@@ -21,7 +21,7 @@ function Dashboard() {
       const userId = localStorage.getItem("userId");
       const token = localStorage.getItem("token");
 
-      // FIXED: If user context details are missing, instantly redirect to /login
+      
       if (!userId || !token) {
         setLoading(false);
         navigate("/login", { replace: true });
@@ -32,7 +32,7 @@ function Dashboard() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      // If the token is invalid or expired on the server, clear storage and redirect
+      
       if (!res.ok) {
         localStorage.removeItem("token");
         localStorage.removeItem("userId");
@@ -125,7 +125,7 @@ function Dashboard() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-screen bg-[#FDF6F3]">
         <p className="text-sm text-gray-400 animate-pulse">Loading...</p>
       </div>
     );
@@ -159,34 +159,24 @@ function Dashboard() {
   const todayPct = cycleLength && cycleDay ? Math.min(100, ((cycleDay - 1) / cycleLength) * 100) : 0;
 
   return (
-    <div className="min-h-screen bg-[#FAF7F5] relative">
+    <div className="min-h-screen bg-[#FDF6F3] relative">
       {showModal && <Onboardingmodal onClose={handleOnboardingClose} />}
 
       <div className="max-w-6xl mx-auto p-6">
         <div className="mb-8 flex justify-between items-start">
           <div>
-            <h1 className="text-xl font-semibold text-gray-800">
-              Good morning{user?.name ? `, ${user.name.split(" ")[0]}` : ""} 
+            {cycleDay && (
+              <span className="inline-block bg-pink-100 text-pink-600 text-xs font-semibold px-3 py-1 rounded-full mb-3">
+                Day {cycleDay} of your cycle
+              </span>
+            )}
+            <h1 className="font-serif text-3xl text-gray-900 leading-tight">
+              Good morning{user?.name ? `, ${user.name.split(" ")[0]}` : ""}
             </h1>
-            <p className="text-sm text-gray-400">Here's your cycle overview</p>
+            <p className="text-sm text-gray-500 mt-1">Here's your cycle overview</p>
           </div>
 
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate('/status-feed')}
-              className="text-xs font-semibold text-[#C2597A] bg-[#F6DCE3] px-4 py-2 rounded-xl hover:bg-[#7A3349] hover:text-white transition-colors"
-            >
-              View Friend Feeds 🌍
-            </button>
           
-            <button
-              onClick={() => setIsChatOpen(true)}
-              className="w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center text-lg shadow-sm hover:border-[#C2597A] hover:text-[#C2597A] transition-colors"
-              title="Ask Luna"
-            >
-              💬
-            </button>
-          </div>
         </div>
 
         {user?.cycleInfo?.lastPeriod ? (
@@ -199,7 +189,7 @@ function Dashboard() {
 
             <button
               onClick={handleNavigateToCycleStats}
-              className="w-full bg-white rounded-2xl p-6 mb-4 border border-gray-100 text-left hover:border-[#C2597A]/40 hover:shadow-sm transition-all group"
+              className="w-full bg-white rounded-2xl p-6 mb-4 border border-gray-200 text-left hover:border-[#C2597A]/40 hover:shadow-sm transition-all group"
             >
               <div className="flex items-center justify-between">
                 <div>
@@ -228,7 +218,7 @@ function Dashboard() {
 
             <button
               onClick={() => navigate("/symptoms")}
-              className="w-full bg-white rounded-xl p-5 border border-gray-100 flex items-center justify-between hover:border-[#C2597A]/40 hover:shadow-sm transition-all group mb-3"
+              className="w-full bg-white rounded-2xl p-5 border border-gray-200 flex items-center justify-between hover:border-[#C2597A]/40 hover:shadow-sm transition-all group mb-3"
             >
               <div className="flex items-center gap-4">
                 <div className="w-11 h-11 rounded-full bg-[#F6DCE3] flex items-center justify-center text-xl group-hover:bg-[#F0C7D1] transition-colors">
@@ -260,7 +250,7 @@ function Dashboard() {
 
             <button
               onClick={() => navigate("/pregnancy-setup")}
-              className="w-full bg-white rounded-xl p-5 border border-gray-100 flex items-center justify-between hover:border-[#C2597A]/40 hover:shadow-sm transition-all group"
+              className="w-full bg-white rounded-2xl p-5 border border-gray-200 flex items-center justify-between hover:border-[#C2597A]/40 hover:shadow-sm transition-all group"
             >
               <div className="flex items-center gap-4">
                 <div className="w-11 h-11 rounded-full bg-[#F6DCE3] flex items-center justify-center text-xl group-hover:bg-[#F0C7D1] transition-colors">
@@ -295,7 +285,7 @@ function Dashboard() {
             <p className="text-gray-400 mb-4">No cycle data yet.</p>
             <button
               onClick={() => setShowModal(true)}
-              className="bg-[#C2597A] text-white px-6 py-2.5 rounded-lg text-sm hover:bg-[#7A3349] transition-colors"
+              className="bg-pink-500 text-white px-6 py-2.5 rounded-full text-sm font-semibold hover:bg-pink-600 transition-colors"
             >
               Set up your cycle
             </button>
@@ -337,10 +327,10 @@ function Dashboard() {
         )}
       </div>
 
-      <StatusPopup 
-        isOpen={isVibeOpen} 
-        onClose={() => setIsVibeOpen(false)} 
-        currentUserName={user?.name || localStorage.getItem("userName") || "Meejala"} 
+      <StatusPopup
+        isOpen={isVibeOpen}
+        onClose={() => setIsVibeOpen(false)}
+        currentUserName={user?.name || localStorage.getItem("userName") || "Meejala"}
       />
     </div>
   );
