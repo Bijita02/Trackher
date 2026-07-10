@@ -54,12 +54,14 @@ const Register = () => {
     const data = await response.json();
 
     if (response.ok) {
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("userId", data.userId);
+
       setMessage("Success: " + data.message);
-      setTimeout(()=>{
-        navigate("/login");
-      },1000);
+      setTimeout(() => {
+        navigate("/dashboard");
+      }, 800);
       setFormData({ name: "", email: "", password: "", birthdate: "" });
-      e.target.reset();
     } else {
       setMessage(" Error: " + data.error);
     }
