@@ -8,30 +8,11 @@ import { ChevronLeft } from "lucide-react";
 
 const MS_PER_DAY = 86400000;
 
-const FALLBACK_CYCLE_HISTORY = [
-  { label: "Feb", length: 29 },
-  { label: "Mar", length: 27 },
-  { label: "Apr", length: 28 },
-  { label: "May", length: 30 },
-  { label: "Jun", length: 26 },
-  { label: "Jul", length: 28 },
-];
-
-const FALLBACK_SYMPTOMS = [
-  { name: "Fatigue", count: 15 },
-  { name: "Cramps", count: 12 },
-  { name: "Mood swings", count: 10 },
-  { name: "Headache", count: 8 },
-  { name: "Bloating", count: 7 },
-];
-
 const BAR_COLORS = ["#E23670", "#EB5490", "#F281AB", "#F7A7C6", "#FBCADD"];
 
 export default function CycleStatsPage() {
   const navigate = useNavigate();
 
-  // Current snapshot values fetched fresh from the backend (not relying on nav state,
-  // so this page works correctly even on a direct visit or page refresh)
   const [currentCycleLength, setCurrentCycleLength] = useState(28);
   const [currentPeriodLength, setCurrentPeriodLength] = useState(5);
 
@@ -66,7 +47,6 @@ export default function CycleStatsPage() {
       if (data.cycleInfo?.cycleLength) setCurrentCycleLength(Number(data.cycleInfo.cycleLength));
       if (data.cycleInfo?.periodLength) setCurrentPeriodLength(Number(data.cycleInfo.periodLength));
 
-      // Real field: cycleInfo.history = [{ date, cycleLength, periodLength }, ...]
       const rawHistory = data.cycleInfo?.history || [];
 
       const seenDays = new Set();
@@ -87,7 +67,6 @@ export default function CycleStatsPage() {
 
       setHistoryEntries(cleaned);
 
-      // Real field: cycleInfo.symptoms = [{ date, tags: [...], notes, intensity }, ...]
       const symptomLogs = data.cycleInfo?.symptoms || [];
       const counts = {};
       symptomLogs.forEach((entry) => {
@@ -105,18 +84,28 @@ export default function CycleStatsPage() {
     }
   };
 
-  const getAverageCycleLength = () => {
-    const dates = historyEntries.map((h) => h.date);
-    if (dates.length < 2) return currentCycleLength;
-
+  // Real gaps between logged period-start dates, oldest → newest.
+  // Each gap IS a real cycle length: the number of days between two
+  // consecutive periods she actually logged.
+  const realCycleGaps = useMemo(() => {
+    const dates = [...historyEntries.map((h) => h.date)].sort((a, b) => a - b);
     const gaps = [];
     for (let i = 0; i < dates.length - 1; i++) {
-      const diff = (dates[i] - dates[i + 1]) / MS_PER_DAY;
-      if (diff >= 15 && diff <= 60) gaps.push(diff); // ignore impossible/glitch gaps
+      const diff = Math.round((dates[i + 1] - dates[i]) / MS_PER_DAY);
+      if (diff >= 15 && diff <= 60) {
+        gaps.push({
+          label: dates[i + 1].toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+          length: diff,
+        });
+      }
     }
+    return gaps;
+  }, [historyEntries]);
 
-    if (gaps.length === 0) return currentCycleLength;
-    return Math.round(gaps.reduce((a, b) => a + b, 0) / gaps.length);
+  const getAverageCycleLength = () => {
+    if (realCycleGaps.length === 0) return currentCycleLength;
+    const sum = realCycleGaps.reduce((a, g) => a + g.length, 0);
+    return Math.round(sum / realCycleGaps.length);
   };
 
   const getAveragePeriodLength = () => {
@@ -128,31 +117,15 @@ export default function CycleStatsPage() {
     return Math.round(lengths.reduce((a, b) => a + b, 0) / lengths.length);
   };
 
-  const cycleTrendData = useMemo(() => {
-    const dates = [...historyEntries.map((h) => h.date)].sort((a, b) => a - b);
-    if (dates.length < 2) return FALLBACK_CYCLE_HISTORY;
-
-    const points = [];
-    for (let i = 0; i < dates.length - 1; i++) {
-      const diff = Math.round((dates[i + 1] - dates[i]) / MS_PER_DAY);
-      if (diff >= 15 && diff <= 60) {
-        points.push({
-          label: dates[i].toLocaleDateString("en-US", { month: "short" }),
-          length: diff,
-        });
-      }
-    }
-    return points.length > 0 ? points.slice(-6) : FALLBACK_CYCLE_HISTORY;
-  }, [historyEntries]);
+  const cycleTrendData = realCycleGaps.slice(-6); // last 6 REAL logged cycles, nothing invented
+  const hasRealTrendData = cycleTrendData.length > 0;
 
   const symptomChartData = useMemo(() => {
     const entries = Object.entries(symptomCounts).sort((a, b) => b[1] - a[1]);
-    if (entries.length === 0) return FALLBACK_SYMPTOMS;
     return entries.slice(0, 5).map(([name, count]) => ({ name, count }));
   }, [symptomCounts]);
 
-  const usingFallbackSymptoms = Object.keys(symptomCounts).length === 0;
-  const usingFallbackTrend = historyEntries.length < 2;
+  const hasRealSymptomData = symptomChartData.length > 0;
 
   if (loading) {
     return (
@@ -202,6 +175,9 @@ export default function CycleStatsPage() {
           <h2 className="fr-display text-3xl" style={{ color: "#E23670" }}>
             {getAverageCycleLength()} days
           </h2>
+          {realCycleGaps.length === 0 && (
+            <p className="text-xs mt-1" style={{ color: "#B7A8B1" }}>Based on your current setting — log a couple more periods for a real average</p>
+          )}
         </div>
 
         <div className="rounded-2xl p-6" style={{ background: "#fff", border: "1px solid #FDE3EC" }}>
@@ -216,43 +192,61 @@ export default function CycleStatsPage() {
         <div className="rounded-2xl p-6" style={{ background: "#fff", border: "1px solid #FDE3EC" }}>
           <h3 className="fr-display text-lg mb-1" style={{ color: "#241220" }}>Cycle length trend</h3>
           <p className="text-xs mb-4" style={{ color: "#8F8290" }}>
-            {usingFallbackTrend ? "Sample data — log more cycles to see yours" : "Last 6 cycles"}
+            {hasRealTrendData ? "Your last logged cycles" : "Log at least two periods to see your trend"}
           </p>
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={cycleTrendData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-              <defs>
-                <linearGradient id="cycleFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#E23670" stopOpacity={0.25} />
-                  <stop offset="100%" stopColor="#E23670" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#FBE7EF" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#B7A8B1" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 12, fill: "#B7A8B1" }} axisLine={false} tickLine={false} domain={[20, 36]} />
-              <Tooltip contentStyle={{ borderRadius: 10, border: "1px solid #FDE3EC", fontSize: 13 }} />
-              <Area type="monotone" dataKey="length" stroke="#E23670" strokeWidth={2.5} fill="url(#cycleFill)" />
-            </AreaChart>
-          </ResponsiveContainer>
+
+          {hasRealTrendData ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={cycleTrendData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="cycleFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#E23670" stopOpacity={0.25} />
+                    <stop offset="100%" stopColor="#E23670" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#FBE7EF" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#B7A8B1" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 12, fill: "#B7A8B1" }} axisLine={false} tickLine={false} domain={[20, 36]} />
+                <Tooltip contentStyle={{ borderRadius: 10, border: "1px solid #FDE3EC", fontSize: 13 }} />
+                <Area type="monotone" dataKey="length" stroke="#E23670" strokeWidth={2.5} fill="url(#cycleFill)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex flex-col items-center justify-center text-center" style={{ height: 220 }}>
+              <p className="text-sm" style={{ color: "#B7A8B1" }}>
+                No trend yet — this chart fills in as you log each new period.
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="rounded-2xl p-6" style={{ background: "#fff", border: "1px solid #FDE3EC" }}>
           <h3 className="fr-display text-lg mb-1" style={{ color: "#241220" }}>Most logged symptoms</h3>
           <p className="text-xs mb-4" style={{ color: "#8F8290" }}>
-            {usingFallbackSymptoms ? "Sample data — log symptoms to see yours" : "All time"}
+            {hasRealSymptomData ? "All time" : "Log symptoms to see your top ones here"}
           </p>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={symptomChartData} layout="vertical" margin={{ top: 5, right: 20, left: 10, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#FBE7EF" horizontal={false} />
-              <XAxis type="number" tick={{ fontSize: 12, fill: "#B7A8B1" }} axisLine={false} tickLine={false} />
-              <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 12, fill: "#241220" }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ borderRadius: 10, border: "1px solid #FDE3EC", fontSize: 13 }} />
-              <Bar dataKey="count" radius={[0, 6, 6, 0]}>
-                {symptomChartData.map((_, i) => (
-                  <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+
+          {hasRealSymptomData ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={symptomChartData} layout="vertical" margin={{ top: 5, right: 20, left: 10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#FBE7EF" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 12, fill: "#B7A8B1" }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 12, fill: "#241220" }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ borderRadius: 10, border: "1px solid #FDE3EC", fontSize: 13 }} />
+                <Bar dataKey="count" radius={[0, 6, 6, 0]}>
+                  {symptomChartData.map((_, i) => (
+                    <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex flex-col items-center justify-center text-center" style={{ height: 220 }}>
+              <p className="text-sm" style={{ color: "#B7A8B1" }}>
+                No symptoms logged yet.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

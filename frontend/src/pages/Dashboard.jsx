@@ -4,9 +4,22 @@ import Onboardingmodal from "../components/onboardingmodal";
 import ChatBot from "../components/chatbot";
 import CycleDetails from "../components/cycledetails";
 import StatusPopup from "../components/statuspopup";
+import {
+  MS_PER_DAY,
+  dayInCycle,
+  phaseForDay,
+  groupPhase,
+  buildPhaseTimeline,
+} from "../utils/cycleMath";
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const POSTPARTUM_BUFFER_DAYS = 42;
+
+const PHASE_DISPLAY = {
+  menstrual: { label: "Period", color: "#C2597A" },
+  follicular: { label: "Follicular", color: "#F0C48F" },
+  ovulatory: { label: "Ovulation", color: "#D97E3D" },
+  luteal: { label: "Luteal", color: "#7A3349" },
+};
 
 function Dashboard() {
   const navigate = useNavigate();
@@ -21,7 +34,6 @@ function Dashboard() {
       const userId = localStorage.getItem("userId");
       const token = localStorage.getItem("token");
 
-      
       if (!userId || !token) {
         setLoading(false);
         navigate("/login", { replace: true });
@@ -32,7 +44,6 @@ function Dashboard() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      
       if (!res.ok) {
         localStorage.removeItem("token");
         localStorage.removeItem("userId");
@@ -75,30 +86,6 @@ function Dashboard() {
     await fetchUser();
   };
 
-  const getCycleDay = () => {
-    if (!user?.cycleInfo?.lastPeriod) return null;
-    const cycleLength = Number(user.cycleInfo.cycleLength);
-    const lastPeriod = new Date(user.cycleInfo.lastPeriod);
-    const daysSince = Math.floor((Date.now() - lastPeriod.getTime()) / MS_PER_DAY);
-    if (daysSince < 0) return 1;
-    return (daysSince % cycleLength) + 1;
-  };
-
-  const PHASES = [
-    { key: "menstrual", label: "Period", color: "#C2597A" },
-    { key: "follicular", label: "Follicular", color: "#F0C48F" },
-    { key: "ovulatory", label: "Ovulation", color: "#D97E3D" },
-    { key: "luteal", label: "Luteal", color: "#7A3349" },
-  ];
-
-  const getPhase = (cycleDay, periodLength) => {
-    if (cycleDay == null) return null;
-    if (cycleDay <= periodLength) return "menstrual";
-    if (cycleDay <= 13) return "follicular";
-    if (cycleDay <= 15) return "ovulatory";
-    return "luteal";
-  };
-
   const getFertilityLabel = (phaseKey) => {
     switch (phaseKey) {
       case "menstrual":
@@ -133,30 +120,25 @@ function Dashboard() {
 
   const cycleLength = user?.cycleInfo ? Number(user.cycleInfo.cycleLength) : null;
   const periodLength = user?.cycleInfo ? Number(user.cycleInfo.periodLength) : null;
-  const cycleDay = getCycleDay();
-  const currentPhase = getPhase(cycleDay, periodLength);
   const lastPeriodDate = user?.cycleInfo?.lastPeriod ? new Date(user.cycleInfo.lastPeriod) : null;
 
-  const dayBounds = cycleLength
-    ? {
-        menstrualEnd: Math.min(periodLength, cycleLength),
-        follicularEnd: Math.min(Math.max(13, periodLength), cycleLength),
-        ovulatoryEnd: Math.min(Math.max(15, periodLength), cycleLength),
-      }
-    : { menstrualEnd: 0, follicularEnd: 0, ovulatoryEnd: 0 };
+  const CYCLE = lastPeriodDate && cycleLength && periodLength
+    ? { lastPeriodStart: lastPeriodDate, cycleLength, periodLength }
+    : null;
 
-  const toPct = (days) => (cycleLength ? (days / cycleLength) * 100 : 0);
+  // All derived from the SAME shared math cycledetails.jsx uses — no more
+  // separately-maintained (and drifting) day/phase logic here.
+  const cycleDay = CYCLE ? dayInCycle(new Date(), CYCLE) : null;
+  const currentPhase = CYCLE ? groupPhase(phaseForDay(cycleDay, CYCLE)) : null;
 
-  const segments = cycleLength
-    ? [
-        { ...PHASES[0], start: 0, width: toPct(dayBounds.menstrualEnd) },
-        { ...PHASES[1], start: toPct(dayBounds.menstrualEnd), width: toPct(dayBounds.follicularEnd - dayBounds.menstrualEnd) },
-        { ...PHASES[2], start: toPct(dayBounds.follicularEnd), width: toPct(dayBounds.ovulatoryEnd - dayBounds.follicularEnd) },
-        { ...PHASES[3], start: toPct(dayBounds.ovulatoryEnd), width: 100 - toPct(dayBounds.ovulatoryEnd) },
-      ]
+  const segments = CYCLE
+    ? buildPhaseTimeline(CYCLE, groupPhase).map((seg) => ({
+        ...seg,
+        ...PHASE_DISPLAY[seg.key],
+      }))
     : [];
 
-  const todayPct = cycleLength && cycleDay ? Math.min(100, ((cycleDay - 1) / cycleLength) * 100) : 0;
+  const todayPct = CYCLE && cycleDay ? Math.min(100, ((cycleDay - 1) / cycleLength) * 100) : 0;
 
   return (
     <div className="min-h-screen bg-[#FDF6F3] relative">
@@ -175,17 +157,19 @@ function Dashboard() {
             </h1>
             <p className="text-sm text-gray-500 mt-1">Here's your cycle overview</p>
           </div>
-
-          
         </div>
 
         {user?.cycleInfo?.lastPeriod ? (
           <>
             <CycleDetails
-              lastPeriodStart={lastPeriodDate}
-              cycleLength={cycleLength}
-              periodLength={periodLength}
-            />
+  lastPeriodStart={lastPeriodDate}
+  cycleLength={cycleLength}
+  periodLength={periodLength}
+  history={user.cycleInfo?.history || []} 
+  apiBaseUrl="http://localhost:5000/api"
+  authToken={localStorage.getItem("token")}
+  onCycleUpdate={(updatedUser) => setUser(updatedUser)}
+/>
 
             <button
               onClick={handleNavigateToCycleStats}
