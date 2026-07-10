@@ -12,7 +12,7 @@ import PregnancyDashboard from "./pages/PregnancyDashboard";
 import PregnancySetup from "./pages/PregnancySetup";
 import CycleStatsPage from "./pages/CycleStatsPage";
 import StatusFeed from "./pages/StatusFeed";
-
+import Calendar from "./pages/calendar";
 
 function App() {
   return (
@@ -31,7 +31,7 @@ function App() {
           <Route path="/pregnancy-setup" element={<PregnancySetup />} />
           <Route path="/cycle-details" element={<CycleDetails />} />
                     <Route path="/cycle-stats" element={<CycleStatsPage />} />
-          
+          <Route path="/calendar" element={<Calendar />} />
         </Routes>
       </div>
     </Router>
