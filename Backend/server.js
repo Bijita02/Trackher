@@ -63,6 +63,7 @@ app.get("/", (req, res) => {
 });
 
 // AUTHENTICATION: Register Route
+// AUTHENTICATION: Register Route
 app.post("/api/register", async (req, res) => {
   try {
     const { name, email, password, birthdate } = req.body;
@@ -76,13 +77,25 @@ app.post("/api/register", async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = new User({ name, email, password: hashedPassword, birthdate });
     await user.save();
-    res.status(201).json({ message: "Account created securely!" });
+
+    const userIdString = user._id.toString();
+
+    const token = jwt.sign(
+      { id: userIdString, _id: userIdString },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    res.status(201).json({
+      message: "Account created securely!",
+      token,
+      userId: userIdString,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// AUTHENTICATION: Login Route
 app.post("/api/login", async (req, res) => {
   try {
     const { email, password } = req.body;
