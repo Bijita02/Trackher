@@ -1,5 +1,14 @@
 import React, { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Droplet, Sparkles, Leaf, Moon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Droplet, Sparkles, Leaf, Moon, Pencil, Check, X, Loader2 } from "lucide-react";
+import {
+  dayInCycle,
+  stripTime,
+  phaseForDay,
+  addDays,
+  daysUntilNextPeriod,
+  toInputDate,
+  fromInputDate,
+} from "../utils/cycleMath";
 
 const PHASE = {
   menstrual: { label: "Menstrual", color: "#E23670", soft: "#FCE1EA", icon: Droplet },
@@ -9,56 +18,107 @@ const PHASE = {
   luteal: { label: "Luteal", color: "#B96C87", soft: "#F6E4EA", icon: Moon },
 };
 
-function dayInCycle(date, cycle) {
-  const msPerDay = 86400000;
-  const diff = Math.floor((stripTime(date) - stripTime(cycle.lastPeriodStart)) / msPerDay);
-  const mod = ((diff % cycle.cycleLength) + cycle.cycleLength) % cycle.cycleLength;
-  return mod + 1; // 1-indexed day within the cycle
-}
+export default function Cycledetails({
+  lastPeriodStart,
+  cycleLength,
+  periodLength,
+  history = [],           // NEW: real logged period dates, e.g. user.cycleInfo.history
+  apiBaseUrl = "/api",
+  authToken,
+  onCycleUpdate,
+}) {
+  const today = useMemo(() => new Date(), []);
+  const [localLastPeriod, setLocalLastPeriod] = useState(null);
+  const [localHistory, setLocalHistory] = useState(null); // NEW: mirrors saved history immediately
 
-function stripTime(d) {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-}
+  const resolvedLastPeriod = localLastPeriod || lastPeriodStart || new Date(2026, 5, 28);
+  const resolvedHistory = localHistory || history;
 
-function phaseForDay(day, cycle) {
-  const ovulationDay = cycle.cycleLength - 14; // 14-day luteal phase is the stable part of the cycle
-  if (day <= cycle.periodLength) return "menstrual";
-  if (day === ovulationDay) return "ovulation";
-  if (day >= ovulationDay - 4 && day < ovulationDay) return "fertile";
-  if (day < ovulationDay - 4) return "follicular";
-  return "luteal";
-}
+  // NEW: every known real period-start date, so past months anchor to
+  // what actually happened instead of being extrapolated from the newest one
+  const periodStarts = useMemo(() => {
+    const dates = [resolvedLastPeriod, ...resolvedHistory.map((h) => new Date(h.date))];
+    return dates.filter((d) => d instanceof Date && !isNaN(d));
+  }, [resolvedLastPeriod, resolvedHistory]);
 
-function addDays(date, n) {
-  const d = new Date(date);
-  d.setDate(d.getDate() + n);
-  return d;
-}
-
-function daysUntilNextPeriod(today, cycle) {
-  const day = dayInCycle(today, cycle);
-  const remaining = cycle.cycleLength - day + 1;
-  return remaining === cycle.cycleLength ? 0 : remaining;
-}
-
-export default function Cycledetails({ lastPeriodStart, cycleLength, periodLength }) {
-  // Real data from Dashboard.jsx is used when provided; otherwise falls back to mock data
   const CYCLE = {
-    lastPeriodStart: lastPeriodStart || new Date(2026, 5, 28),
+    lastPeriodStart: resolvedLastPeriod,
+    periodStarts,
     cycleLength: cycleLength || 28,
     periodLength: periodLength || 5,
   };
 
-  const today = useMemo(() => new Date(), []);
   const [viewDate, setViewDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
 
+  const [isEditing, setIsEditing] = useState(false);
+  const [editDate, setEditDate] = useState(() => toInputDate(today));
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+
   const monthLabel = viewDate.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-  const todayPhase = phaseForDay(dayInCycle(today, CYCLE), CYCLE);
   const todayCycleDay = dayInCycle(today, CYCLE);
+  const todayPhase = phaseForDay(todayCycleDay, CYCLE);
   const untilNext = daysUntilNextPeriod(today, CYCLE);
   const nextPeriodDate = addDays(today, untilNext);
+  const isOnPeriod = todayPhase === "menstrual";
 
   const grid = useMemo(() => buildMonthGrid(viewDate), [viewDate]);
+
+  async function handleSavePeriod() {
+    if (!editDate) {
+      setSaveError("Please pick a date.");
+      return;
+    }
+
+    setSaving(true);
+    setSaveError(null);
+
+    try {
+      const res = await fetch(`${apiBaseUrl}/user-cycle`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        },
+        body: JSON.stringify({
+          lastPeriod: editDate,
+          cycleLength: CYCLE.cycleLength,
+          periodLength: CYCLE.periodLength,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Couldn't save your period date. Please try again.");
+      }
+
+      const savedUser = data.user || data;
+      const newLastPeriod = fromInputDate(editDate);
+
+      setLocalLastPeriod(newLastPeriod);
+      // Keep local history in sync immediately too, so the calendar reflects
+      // the fix instantly without waiting for a full user refetch.
+      setLocalHistory(savedUser?.cycleInfo?.history || [...resolvedHistory, { date: editDate }]);
+      setIsEditing(false);
+      onCycleUpdate?.(savedUser);
+    } catch (err) {
+      setSaveError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function openEditor() {
+    setEditDate(toInputDate(today));
+    setSaveError(null);
+    setIsEditing(true);
+  }
+
+  function cancelEditor() {
+    setIsEditing(false);
+    setSaveError(null);
+  }
 
   return (
     <div style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -68,7 +128,6 @@ export default function Cycledetails({ lastPeriodStart, cycleLength, periodLengt
       `}</style>
 
       <div className="mt-8">
-        {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="fr-display text-3xl" style={{ color: "#241220" }}>Cycle calendar</h1>
@@ -80,12 +139,13 @@ export default function Cycledetails({ lastPeriodStart, cycleLength, periodLengt
             className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium"
             style={{ background: "#FCE1EA", color: "#E23670" }}
           >
-            Next period in {untilNext} day{untilNext === 1 ? "" : "s"} · {nextPeriodDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+            {isOnPeriod
+              ? `On day ${todayCycleDay} of your period`
+              : `Next period in ${untilNext} day${untilNext === 1 ? "" : "s"} · ${nextPeriodDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Calendar */}
           <div className="lg:col-span-2 rounded-2xl p-6" style={{ background: "#fff", border: "1px solid #FDE3EC" }}>
             <div className="flex items-center justify-between mb-5">
               <button
@@ -137,7 +197,6 @@ export default function Cycledetails({ lastPeriodStart, cycleLength, periodLengt
               })}
             </div>
 
-            {/* Legend */}
             <div className="flex flex-wrap gap-4 mt-5 pt-5" style={{ borderTop: "1px solid #FBE7EF" }}>
               {["menstrual", "follicular", "fertile", "luteal"].map((key) => (
                 <div key={key} className="flex items-center gap-2 text-xs" style={{ color: "#8F8290" }}>
@@ -148,13 +207,64 @@ export default function Cycledetails({ lastPeriodStart, cycleLength, periodLengt
             </div>
           </div>
 
-          {/* Phase ring */}
           <div className="rounded-2xl p-6 flex flex-col items-center justify-center" style={{ background: "#fff", border: "1px solid #FDE3EC" }}>
+            <div className="w-full flex justify-end mb-1">
+              {!isEditing && (
+                <button
+                  onClick={openEditor}
+                  className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full hover:bg-rose-50 transition"
+                  style={{ color: "#B96C87" }}
+                >
+                  <Pencil size={12} /> Log period
+                </button>
+              )}
+            </div>
+
             <PhaseRing cycle={CYCLE} today={today} phase={todayPhase} />
             <p className="fr-display text-xl mt-4" style={{ color: PHASE[todayPhase].color }}>{PHASE[todayPhase].label}</p>
             <p className="text-sm text-center mt-1" style={{ color: "#8F8290" }}>
               Cycle day {todayCycleDay} of {CYCLE.cycleLength}
             </p>
+
+            {isEditing && (
+              <div className="w-full mt-5 pt-5" style={{ borderTop: "1px solid #FBE7EF" }}>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: "#8F8290" }}>
+                  Period started on
+                </label>
+                <input
+                  type="date"
+                  value={editDate}
+                  max={toInputDate(today)}
+                  onChange={(e) => setEditDate(e.target.value)}
+                  className="w-full text-sm px-3 py-2 rounded-lg outline-none"
+                  style={{ border: "1px solid #FDE3EC", color: "#241220" }}
+                />
+
+                {saveError && (
+                  <p className="text-xs mt-2" style={{ color: "#E23670" }}>{saveError}</p>
+                )}
+
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={handleSavePeriod}
+                    disabled={saving}
+                    className="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium py-2 rounded-lg transition disabled:opacity-60"
+                    style={{ background: "#E23670", color: "#fff" }}
+                  >
+                    {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                    {saving ? "Saving…" : "Save"}
+                  </button>
+                  <button
+                    onClick={cancelEditor}
+                    disabled={saving}
+                    className="flex items-center justify-center gap-1.5 text-sm font-medium px-3 py-2 rounded-lg transition disabled:opacity-60"
+                    style={{ background: "#FCE1EA", color: "#8F8290" }}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
