@@ -152,9 +152,7 @@ function Dashboard() {
                 Day {cycleDay} of your cycle
               </span>
             )}
-            <h1 className="font-serif text-3xl text-gray-900 leading-tight">
-              Good morning{user?.name ? `, ${user.name.split(" ")[0]}` : ""}
-            </h1>
+           
             <p className="text-sm text-gray-500 mt-1">Here's your cycle overview</p>
           </div>
         </div>

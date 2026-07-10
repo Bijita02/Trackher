@@ -1,7 +1,7 @@
 import { useState, useEffect,useMemo,useRef } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import logo from "../assets/logo.png";
-import { Bell } from "lucide-react";
+import { Bell ,Calendar } from "lucide-react";
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -40,6 +40,15 @@ const Navbar = () => {
           >
             Home
           </Link>
+            {isLoggedIn && (
+            <Link
+              to="/calendar"
+              className="text-gray-700 hover:text-pink-500 transition"
+              title="Calendar"
+            >
+              <Calendar size={20} />
+            </Link>
+          )}
 
           {isLoggedIn && (
             <div className="relative">
@@ -97,7 +106,6 @@ const Navbar = () => {
 
       {isOpen && (
         <div className="md:hidden bg-white shadow-md px-6 py-4 space-y-4">
-
           <Link
             to="/"
             className="block text-gray-700 hover:text-pink-500"
@@ -105,19 +113,35 @@ const Navbar = () => {
           >
             Home
           </Link>
-
-          {isLoggedIn && (
-            <button
-              onClick={() => {
-                navigate("/cycle-details");
-                setIsOpen(false);
-              }}
-              className="block text-gray-700 hover:text-pink-500"
-            >
-              🔔 Notifications
-            </button>
+             {isLoggedIn && (
+            <div className="flex items-center gap-4">
+              <Link
+                to="/calendar"
+                className="text-gray-700 hover:text-pink-500 transition"
+                title="Calendar"
+                onClick={() => setIsOpen(false)}
+              >
+                <Calendar size={20} />
+              </Link>
+ 
+              <button
+                onClick={() => {
+                  setShowNotifications(!showNotifications);
+                }}
+                className="text-gray-700 hover:text-pink-500"
+              >
+                🔔 Notifications
+              </button>
+            </div>
           )}
-
+ 
+          {showNotifications && (
+            <div className="mt-2 w-full bg-white rounded-xl shadow-lg border border-gray-100 p-4 text-sm text-gray-600 z-50">
+              <p className="font-semibold text-gray-800 mb-2">Notifications</p>
+              <p className="text-gray-400">No new notifications</p>
+            </div>
+          )}
+       
           {isLoggedIn ? (
             <button
               onClick={() => {
