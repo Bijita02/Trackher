@@ -17,7 +17,7 @@ export default function CycleStatsPage() {
   const [currentPeriodLength, setCurrentPeriodLength] = useState(5);
 
   const [historyEntries, setHistoryEntries] = useState([]); // [{date, cycleLength, periodLength}]
-  const [symptomCounts, setSymptomCounts] = useState({});
+  const [symptomCounts, setSymptomCounts] = useState({ counts: {}, displayName: {} });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -36,19 +36,17 @@ export default function CycleStatsPage() {
         return;
       }
 
-      const res = await fetch(`http://localhost:5000/api/users/${userId}`, {
+      // Cycle length / period length / period-start history come from the user record
+      const userRes = await fetch(`http://localhost:5000/api/users/${userId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!userRes.ok) throw new Error("Failed to fetch user data");
+      const userData = await userRes.json();
 
-      if (!res.ok) throw new Error("Failed to fetch user data");
+      if (userData.cycleInfo?.cycleLength) setCurrentCycleLength(Number(userData.cycleInfo.cycleLength));
+      if (userData.cycleInfo?.periodLength) setCurrentPeriodLength(Number(userData.cycleInfo.periodLength));
 
-      const data = await res.json();
-
-      if (data.cycleInfo?.cycleLength) setCurrentCycleLength(Number(data.cycleInfo.cycleLength));
-      if (data.cycleInfo?.periodLength) setCurrentPeriodLength(Number(data.cycleInfo.periodLength));
-
-      const rawHistory = data.cycleInfo?.history || [];
-
+      const rawHistory = userData.cycleInfo?.history || [];
       const seenDays = new Set();
       const cleaned = rawHistory
         .map((h) => ({
@@ -67,14 +65,34 @@ export default function CycleStatsPage() {
 
       setHistoryEntries(cleaned);
 
-      const symptomLogs = data.cycleInfo?.symptoms || [];
-      const counts = {};
-      symptomLogs.forEach((entry) => {
-        (entry.tags || []).forEach((tag) => {
-          counts[tag] = (counts[tag] || 0) + 1;
+      // Symptoms come from the real /api/symptoms endpoint (Symptom collection).
+      // This is wrapped in its own try/catch so a symptoms-fetch failure
+      // never sends the whole page to the error screen — it just shows
+      // "No symptoms logged yet" instead.
+      try {
+        const symptomsRes = await fetch(`http://localhost:5000/api/symptoms`, {
+          headers: { Authorization: `Bearer ${token}` },
         });
-      });
-      setSymptomCounts(counts);
+        if (!symptomsRes.ok) throw new Error("Failed to fetch symptom data");
+        const symptomLogs = await symptomsRes.json(); // array of { tags, date, intensity, notes, ... }
+
+        const counts = {};
+        const displayName = {}; // normalized key -> first-seen original casing/spacing
+
+        symptomLogs.forEach((entry) => {
+          (entry.tags || []).forEach((tag) => {
+            const key = tag.trim().toLowerCase();
+            if (!key) return;
+            counts[key] = (counts[key] || 0) + 1;
+            if (!displayName[key]) displayName[key] = tag.trim();
+          });
+        });
+
+        setSymptomCounts({ counts, displayName });
+      } catch (symptomErr) {
+        console.error("Error fetching symptoms:", symptomErr);
+        setSymptomCounts({ counts: {}, displayName: {} }); // falls back to "No symptoms logged yet"
+      }
 
     } catch (err) {
       console.error("Error fetching cycle stats:", err);
@@ -121,8 +139,12 @@ export default function CycleStatsPage() {
   const hasRealTrendData = cycleTrendData.length > 0;
 
   const symptomChartData = useMemo(() => {
-    const entries = Object.entries(symptomCounts).sort((a, b) => b[1] - a[1]);
-    return entries.slice(0, 5).map(([name, count]) => ({ name, count }));
+    const { counts = {}, displayName = {} } = symptomCounts || {};
+    const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    return entries.slice(0, 5).map(([key, count]) => ({
+      name: displayName[key] || key,
+      count,
+    }));
   }, [symptomCounts]);
 
   const hasRealSymptomData = symptomChartData.length > 0;
@@ -230,7 +252,7 @@ export default function CycleStatsPage() {
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={symptomChartData} layout="vertical" margin={{ top: 5, right: 20, left: 10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#FBE7EF" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 12, fill: "#B7A8B1" }} axisLine={false} tickLine={false} />
+                <XAxis type="number" tick={{ fontSize: 12, fill: "#B7A8B1" }} axisLine={false} tickLine={false} allowDecimals={false} />
                 <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 12, fill: "#241220" }} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={{ borderRadius: 10, border: "1px solid #FDE3EC", fontSize: 13 }} />
                 <Bar dataKey="count" radius={[0, 6, 6, 0]}>
