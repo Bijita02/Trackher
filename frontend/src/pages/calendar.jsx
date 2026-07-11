@@ -80,6 +80,7 @@ function CalendarPage() {
           apiBaseUrl="http://localhost:5000/api"
           authToken={localStorage.getItem("token")}
           onCycleUpdate={(updatedUser) => setUser(updatedUser)}
+          showStats={false}
         />
       </div>
     </div>

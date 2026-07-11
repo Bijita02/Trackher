@@ -51,7 +51,7 @@ export default function ChatBotWidget({ onClose }) {
   return (
     
     <div className="bg-white w-96 h-[500px] rounded-2xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden">
-      {/* Header */}
+      
       <div className="bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-pink-100 flex items-center justify-center text-lg">🌸</div>
@@ -63,7 +63,7 @@ export default function ChatBotWidget({ onClose }) {
         <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-sm p-1">✕</button>
       </div>
 
-      {/* Messages */}
+      
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-gray-50/50">
         {messages.map((msg, i) => (
           <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
@@ -80,7 +80,7 @@ export default function ChatBotWidget({ onClose }) {
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
+     
       <div className="p-3 bg-white border-t border-gray-100">
         <div className="flex gap-2 items-center">
           <input
