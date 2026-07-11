@@ -368,37 +368,6 @@ function Dashboard() {
                 onClick={() => navigate("/pregnancy-setup")}
               />
             </div>
-
-            <button
-              onClick={handleNavigateToCycleStats}
-              className="w-full bg-white rounded-2xl p-6 text-left hover:shadow-sm transition-all group"
-              style={{ border: `1px solid ${BRAND.border}` }}
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-base font-semibold mb-1" style={{ color: BRAND.ink }}>
-                    Cycle Stats & Phase History
-                  </p>
-                  <p className="text-xs" style={{ color: BRAND.muted }}>
-                    Trends, averages, and most logged symptoms
-                  </p>
-                </div>
-                <svg
-                  className="w-4 h-4 transition-colors"
-                  style={{ color: BRAND.muted }}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 5l7 7-7 7"
-                  />
-                </svg>
-              </div>
-            </button>
           </>
         ) : (
           <div className="text-center py-20">
