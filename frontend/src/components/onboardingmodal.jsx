@@ -1,5 +1,13 @@
 import { useState } from "react";
 
+const BRAND = {
+  ink: "#241220",
+  muted: "#8F8290",
+  pink: "#E23670",
+  pinkSoft: "#FCE1EA",
+  border: "#FDE3EC",
+};
+
 const Onboardingmodal = ({ onClose }) => {
   const [formData, setFormData] = useState({
     lastPeriod: "",
@@ -27,7 +35,6 @@ const Onboardingmodal = ({ onClose }) => {
         throw new Error("Authentication token missing from session storage.");
       }
 
-      // Sanitize the token string if it accidentally already contains the Bearer prefix
       if (token.startsWith("Bearer ")) {
         token = token.slice(7).trim();
       }
@@ -53,7 +60,7 @@ const Onboardingmodal = ({ onClose }) => {
       const data = await res.json();
       console.log("Saved successfully:", data);
 
-      onClose(); 
+      onClose();
       window.location.reload();
 
     } catch (err) {
@@ -64,158 +71,224 @@ const Onboardingmodal = ({ onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/30 flex justify-center items-center p-4 z-50 backdrop-blur-xs">
-      <div className="bg-white rounded-2xl w-full max-w-md p-8 border border-gray-100 shadow-xl">
+    <div
+      className="fixed inset-0 flex justify-center items-center p-4 z-50 backdrop-blur-xs"
+      style={{ background: "rgba(36, 18, 32, 0.35)", fontFamily: "'Inter', sans-serif" }}
+    >
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap');
+        .fr-display { font-family: 'Fraunces', serif; }
+        @keyframes gentle-bounce {
+          0%, 100% { transform: translateY(0) rotate(-4deg); }
+          50% { transform: translateY(-4px) rotate(4deg); }
+        }
+        .bounce-badge { animation: gentle-bounce 2.4s ease-in-out infinite; }
+        @keyframes pop-in {
+          0% { transform: scale(0.9); opacity: 0; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+        .pop-in { animation: pop-in 0.25s ease-out; }
+      `}</style>
 
-        {!confirming ? (
-          <>
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-9 h-9 rounded-full bg-[#F6DCE3] flex items-center justify-center shrink-0">
-                <span className="text-lg">🌸</span>
+      <div
+        className="pop-in relative bg-white rounded-[28px] w-full max-w-md p-8 shadow-xl overflow-hidden"
+        style={{ border: `1px solid ${BRAND.border}` }}
+      >
+        
+        <div
+          className="absolute -top-10 -right-10 w-32 h-32 rounded-full pointer-events-none"
+          style={{ background: BRAND.pinkSoft, opacity: 0.6 }}
+        />
+        <div
+          className="absolute -bottom-12 -left-8 w-28 h-28 rounded-full pointer-events-none"
+          style={{ background: "#FDF0DC", opacity: 0.6 }}
+        />
+
+        <div className="relative">
+          {!confirming ? (
+            <>
+              
+              <div className="flex items-center justify-center gap-1.5 mb-5">
+                <span className="w-5 h-1.5 rounded-full" style={{ background: BRAND.pink }} />
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: BRAND.border }} />
               </div>
-              <div>
-                <h2 className="text-base font-semibold text-gray-800 leading-tight">
-                  Set up your cycle
+
+              <div className="flex flex-col items-center text-center mb-6">
+                <div
+                  className="bounce-badge w-16 h-16 rounded-full flex items-center justify-center shrink-0 shadow-sm mb-3"
+                  style={{ background: BRAND.pinkSoft }}
+                >
+                  <span className="text-3xl">🌸</span>
+                </div>
+                <h2 className="fr-display text-2xl leading-tight" style={{ color: BRAND.ink }}>
+                  Let's get to know your cycle
                 </h2>
-                <p className="text-sm text-gray-400">
-                  A few details to personalise your calendar.
+                <p className="text-sm mt-1.5" style={{ color: BRAND.muted }}>
+                  Just a couple of quick things, then you're all set ✨
                 </p>
               </div>
-            </div>
 
-            <div className="space-y-5 mb-6">
-              <div>
-                <label className="text-sm text-gray-500 mb-1.5 block">
-                  Last period start date
-                </label>
-                <input
-                  type="date"
-                  className={`w-full border rounded-lg px-3 py-2.5 text-sm bg-gray-50 text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#F6DCE3] ${
-                    dateError ? "border-[#C2597A]" : "border-gray-200"
-                  }`}
-                  value={formData.lastPeriod}
-                  onChange={(e) => {
-                    setDateError(false);
-                    setFormData({ ...formData, lastPeriod: e.target.value });
-                  }}
-                />
-                {dateError && (
-                  <p className="text-xs text-[#C2597A] mt-1">
-                    Please select a date to continue.
-                  </p>
-                )}
+              <div className="space-y-5 mb-6">
+                <div>
+                  <label className="text-sm mb-1.5 block font-medium" style={{ color: BRAND.muted }}>
+                    When did your last period start?
+                  </label>
+                  <input
+                    type="date"
+                    className="w-full rounded-2xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2"
+                    style={{
+                      border: `1.5px solid ${dateError ? BRAND.pink : BRAND.border}`,
+                      background: "#FDF6F3",
+                      color: BRAND.ink,
+                    }}
+                    value={formData.lastPeriod}
+                    onChange={(e) => {
+                      setDateError(false);
+                      setFormData({ ...formData, lastPeriod: e.target.value });
+                    }}
+                  />
+                  {dateError && (
+                    <p className="text-xs mt-1 flex items-center gap-1" style={{ color: BRAND.pink }}>
+                      🌷 Please pick a date so we can get started.
+                    </p>
+                  )}
+                </div>
+
+                <div
+                  className="rounded-2xl p-4"
+                  style={{ background: "#FDF6F3", border: `1px solid ${BRAND.border}` }}
+                >
+                  <label className="flex justify-between text-sm mb-1.5" style={{ color: BRAND.muted }}>
+                    <span>🔁 Average cycle length</span>
+                    <span className="font-semibold" style={{ color: BRAND.pink }}>
+                      {formData.cycleLength} days
+                    </span>
+                  </label>
+                  <input
+                    type="range"
+                    min="21"
+                    max="45"
+                    step="1"
+                    value={formData.cycleLength}
+                    onChange={(e) =>
+                      setFormData({ ...formData, cycleLength: Number(e.target.value) })
+                    }
+                    className="w-full"
+                    style={{ accentColor: BRAND.pink }}
+                  />
+                  <div className="flex justify-between text-xs mt-1" style={{ color: "#C9BCC4" }}>
+                    <span>21 days</span>
+                    <span>45 days</span>
+                  </div>
+                </div>
+
+                <div
+                  className="rounded-2xl p-4"
+                  style={{ background: "#FDF6F3", border: `1px solid ${BRAND.border}` }}
+                >
+                  <label className="flex justify-between text-sm mb-1.5" style={{ color: BRAND.muted }}>
+                    <span>🩷 Period length</span>
+                    <span className="font-semibold" style={{ color: BRAND.pink }}>
+                      {formData.periodLength} days
+                    </span>
+                  </label>
+                  <input
+                    type="range"
+                    min="2"
+                    max="10"
+                    step="1"
+                    value={formData.periodLength}
+                    onChange={(e) =>
+                      setFormData({ ...formData, periodLength: Number(e.target.value) })
+                    }
+                    className="w-full"
+                    style={{ accentColor: BRAND.pink }}
+                  />
+                  <div className="flex justify-between text-xs mt-1" style={{ color: "#C9BCC4" }}>
+                    <span>2 days</span>
+                    <span>10 days</span>
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <label className="flex justify-between text-sm text-gray-500 mb-1.5">
-                  <span>Average cycle length</span>
-                  <span className="font-medium text-[#C2597A]">
+              <button
+                onClick={handleContinue}
+                className="w-full text-white font-semibold py-3 rounded-2xl transition-all text-sm shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-95"
+                style={{ background: BRAND.pink }}
+              >
+                Continue →
+              </button>
+              <p className="text-center text-xs mt-3 flex items-center justify-center gap-1" style={{ color: "#C9BCC4" }}>
+                🔒 Your data stays private, always
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center justify-center gap-1.5 mb-5">
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: BRAND.border }} />
+                <span className="w-5 h-1.5 rounded-full" style={{ background: BRAND.pink }} />
+              </div>
+
+              <div className="flex flex-col items-center text-center mb-5">
+                <div
+                  className="w-16 h-16 rounded-full flex items-center justify-center shrink-0 shadow-sm mb-3"
+                  style={{ background: BRAND.pinkSoft }}
+                >
+                  <span className="text-3xl">🎉</span>
+                </div>
+                <h2 className="fr-display text-2xl" style={{ color: BRAND.ink }}>
+                  Almost there!
+                </h2>
+                <p className="text-sm mt-1" style={{ color: BRAND.muted }}>
+                  Just double-check these details
+                </p>
+              </div>
+
+              <div className="rounded-2xl p-4 mb-5 text-sm" style={{ background: "#FDF6F3", border: `1px solid ${BRAND.border}` }}>
+                <div className="flex justify-between py-2" style={{ borderBottom: `1px solid ${BRAND.border}` }}>
+                  <span style={{ color: BRAND.muted }}>🌷 Last period</span>
+                  <span className="font-medium" style={{ color: BRAND.ink }}>
+                    {formData.lastPeriod ? new Date(formData.lastPeriod).toLocaleDateString("en-US", {
+                      month: "long",
+                      day: "numeric",
+                      year: "numeric",
+                    }) : ""}
+                  </span>
+                </div>
+                <div className="flex justify-between py-2" style={{ borderBottom: `1px solid ${BRAND.border}` }}>
+                  <span style={{ color: BRAND.muted }}>🔁 Cycle length</span>
+                  <span className="font-medium" style={{ color: BRAND.ink }}>
                     {formData.cycleLength} days
                   </span>
-                </label>
-                <input
-                  type="range"
-                  min="21"
-                  max="45"
-                  step="1"
-                  value={formData.cycleLength}
-                  onChange={(e) =>
-                    setFormData({ ...formData, cycleLength: Number(e.target.value) })
-                  }
-                  className="w-full accent-[#C2597A]"
-                />
-                <div className="flex justify-between text-xs text-gray-300 mt-1">
-                  <span>21 days</span>
-                  <span>45 days</span>
                 </div>
-              </div>
-
-              <div>
-                <label className="flex justify-between text-sm text-gray-500 mb-1.5">
-                  <span>Period length</span>
-                  <span className="font-medium text-[#C2597A]">
+                <div className="flex justify-between py-2">
+                  <span style={{ color: BRAND.muted }}>🩷 Period length</span>
+                  <span className="font-medium" style={{ color: BRAND.ink }}>
                     {formData.periodLength} days
                   </span>
-                </label>
-                <input
-                  type="range"
-                  min="2"
-                  max="10"
-                  step="1"
-                  value={formData.periodLength}
-                  onChange={(e) =>
-                    setFormData({ ...formData, periodLength: Number(e.target.value) })
-                  }
-                  className="w-full accent-[#C2597A]"
-                />
-                <div className="flex justify-between text-xs text-gray-300 mt-1">
-                  <span>2 days</span>
-                  <span>10 days</span>
                 </div>
               </div>
-            </div>
 
-            <button
-              onClick={handleContinue}
-              className="w-full bg-[#C2597A] hover:bg-[#7A3349] text-white font-medium py-2.5 rounded-lg transition-colors text-sm shadow-sm"
-            >
-              Continue →
-            </button>
-            <p className="text-center text-xs text-gray-300 mt-3">
-              🔒 Your data stays private
-            </p>
-          </>
-        ) : (
-          <>
-            <h2 className="text-base font-semibold text-gray-800 mb-1">
-              Confirm your details
-            </h2>
-            <p className="text-sm text-gray-400 mb-5">
-              Does everything look right?
-            </p>
-
-            <div className="bg-gray-50 rounded-lg p-4 mb-5 text-sm">
-              <div className="flex justify-between py-2 border-b border-gray-100">
-                <span className="text-gray-500">Last period</span>
-                <span className="font-medium text-gray-700">
-                  {formData.lastPeriod ? new Date(formData.lastPeriod).toLocaleDateString("en-US", {
-                    month: "long",
-                    day: "numeric",
-                    year: "numeric",
-                  }) : ""}
-                </span>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setConfirming(false)}
+                  className="flex-1 py-3 rounded-2xl text-sm font-medium transition-all hover:-translate-y-0.5 active:translate-y-0 active:scale-95"
+                  style={{ border: `1.5px solid ${BRAND.border}`, color: BRAND.muted, background: "#fff" }}
+                >
+                  ← Edit
+                </button>
+                <button
+                  onClick={handleConfirm}
+                  disabled={saving}
+                  className="flex-1 text-white font-semibold py-3 rounded-2xl text-sm transition-all disabled:opacity-60 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-95"
+                  style={{ background: BRAND.pink }}
+                >
+                  {saving ? "Saving..." : "Yes, save it! 🌸"}
+                </button>
               </div>
-              <div className="flex justify-between py-2 border-b border-gray-100">
-                <span className="text-gray-500">Cycle length</span>
-                <span className="font-medium text-gray-700">
-                  {formData.cycleLength} days
-                </span>
-              </div>
-              <div className="flex justify-between py-2">
-                <span className="text-gray-500">Period length</span>
-                <span className="font-medium text-gray-700">
-                  {formData.periodLength} days
-                </span>
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => setConfirming(false)}
-                className="flex-1 border border-gray-200 text-gray-500 py-2.5 rounded-lg hover:bg-gray-50 text-sm transition-colors"
-              >
-                Edit
-              </button>
-              <button
-                onClick={handleConfirm}
-                disabled={saving}
-                className="flex-1 bg-[#C2597A] hover:bg-[#7A3349] text-white font-medium py-2.5 rounded-lg text-sm transition-colors disabled:opacity-60 shadow-sm"
-              >
-                {saving ? "Saving..." : "Yes, save it"}
-              </button>
-            </div>
-          </>
-        )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

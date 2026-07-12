@@ -1,4 +1,4 @@
-// src/components/ChatBotWidget.jsx
+
 import { useState, useRef, useEffect } from "react";
 
 const SYSTEM_PROMPT = `You are Luna, a warm and knowledgeable women's health assistant for TrackHer...`;
@@ -37,7 +37,7 @@ export default function ChatBotWidget({ onClose }) {
 
       const data = await response.json();
       
-      // FIX: Use 'data.reply' because that is what your Gemini backend sends back
+      
       const reply = data.reply || "Sorry, I couldn't respond.";
       
       setMessages([...newMessages, { role: "assistant", content: reply }]);
