@@ -11,6 +11,8 @@ const User = require("./models/User");
 const symptomsRoute = require("./routes/SymptomsRoute");
 const AiChatRoute = require("./routes/AiChatRoute");
 const statusRoutes = require('./Routes/statusRoutes');
+const weightRoute = require("./routes/WeightRoute");
+const cravingsRoute = require("./routes/CravingsRoute");
 
 const app = express();
 
@@ -21,7 +23,6 @@ mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB Connected"))
   .catch(err => console.log(err));
 
-// Helper function to verify incoming authentication tokens
 function verifyToken(req) {
   const authHeader = req.headers.authorization;
 
@@ -42,7 +43,7 @@ function verifyToken(req) {
   try {
     return jwt.verify(token, process.env.JWT_SECRET);
   } catch (jwtErr) {
-    // Log the REAL reason so it shows up in your server terminal
+    
     console.error("JWT verify failed:", jwtErr.name, "-", jwtErr.message);
 
     const err = new Error(
@@ -62,8 +63,6 @@ app.get("/", (req, res) => {
   res.send("Backend server is running");
 });
 
-// AUTHENTICATION: Register Route
-// AUTHENTICATION: Register Route
 app.post("/api/register", async (req, res) => {
   try {
     const { name, email, password, birthdate } = req.body;
@@ -83,7 +82,7 @@ app.post("/api/register", async (req, res) => {
     const token = jwt.sign(
       { id: userIdString, _id: userIdString },
       process.env.JWT_SECRET,
-      { expiresIn: "1h" }
+      { expiresIn: "7d" }
     );
 
     res.status(201).json({
@@ -110,7 +109,7 @@ app.post("/api/login", async (req, res) => {
     const token = jwt.sign(
       { id: userIdString, _id: userIdString },
       process.env.JWT_SECRET,
-      { expiresIn: "1h" }
+      { expiresIn: "7d" }
     );
 
     res.json({ message: "Login successful", token, userId: userIdString });
@@ -143,8 +142,8 @@ app.post("/api/user-cycle", async (req, res) => {
         $push: {
           "cycleInfo.history": {
             date: new Date(lastPeriod),
-            cycleLength: parsedCycleLength,   // FIXED: was missing entirely
-            periodLength: parsedPeriodLength, // FIXED: was missing entirely
+            cycleLength: parsedCycleLength,  
+            periodLength: parsedPeriodLength, 
           },
         },
       },
@@ -166,7 +165,6 @@ app.post("/api/user-cycle", async (req, res) => {
   }
 });
 
-// PREGNANCY: Update Setup Route
 app.post("/api/pregnancy-info", async (req, res) => {
   try {
     const decoded = verifyToken(req);
@@ -204,7 +202,6 @@ app.post("/api/pregnancy-info", async (req, res) => {
   }
 });
 
-// PREGNANCY: Removal Reset Route
 app.delete("/api/pregnancy-info", async (req, res) => {
   try {
     const decoded = verifyToken(req);
@@ -222,7 +219,6 @@ app.delete("/api/pregnancy-info", async (req, res) => {
   }
 });
 
-// CORE USER: Fetch Profile Context Details Route
 app.get("/api/users/:id", async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
@@ -233,10 +229,11 @@ app.get("/api/users/:id", async (req, res) => {
   }
 });
 
-// MOUNTING REGISTERED SYSTEM ROUTERS
 app.use('/api/status', statusRoutes); 
 app.use("/api/symptoms", symptomsRoute);
 app.use("/api/ai", AiChatRoute);
+app.use("/api/weight", weightRoute);
+app.use("/api/cravings", cravingsRoute);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

@@ -1,16 +1,88 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import MiniCalendarPicker from "../components/minicalendarpicker";
+
+const TOTAL_PREGNANCY_DAYS = 280;
+function formatLocalYMD(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function utcStringToLocalDate(isoString) {
+  const d = new Date(isoString);
+  return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+}
+
+function addDaysLocal(date, n) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + n);
+  return d;
+}
 
 function PregnancySetup() {
   const navigate = useNavigate();
   const [mode, setMode] = useState("dueDate"); 
-  const [dateValue, setDateValue] = useState("");
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [hasUserEdited, setHasUserEdited] = useState(false); 
+  const [existingLastPeriod, setExistingLastPeriod] = useState(null); 
+  const [prefillNote, setPrefillNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    const fetchExistingCycleInfo = async () => {
+      try {
+        const userId = localStorage.getItem("userId");
+        const token = localStorage.getItem("token");
+        if (!userId || !token) return;
+
+        const res = await fetch(`http://localhost:5000/api/users/${userId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+
+        const data = await res.json();
+        const lastPeriodStr = data?.cycleInfo?.lastPeriod;
+        if (lastPeriodStr) {
+          setExistingLastPeriod(utcStringToLocalDate(lastPeriodStr));
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchExistingCycleInfo();
+  }, []);
+
+  useEffect(() => {
+    if (hasUserEdited) return;
+    if (!existingLastPeriod) return;
+
+    if (mode === "lastPeriod") {
+      setSelectedDate(existingLastPeriod);
+      setPrefillNote("Pulled in from your cycle tracking — change it if this isn't right.");
+    } else if (mode === "dueDate") {
+      const suggestedDueDate = addDaysLocal(existingLastPeriod, TOTAL_PREGNANCY_DAYS);
+      setSelectedDate(suggestedDueDate);
+      setPrefillNote("Estimated from your last period on file — adjust if your due date is different.");
+    }
+  }, [mode, existingLastPeriod, hasUserEdited]);
+
+  const handleModeChange = (newMode) => {
+    setMode(newMode);
+    setError("");
+  };
+
+  const handleDateChange = (date) => {
+    setSelectedDate(date);
+    setHasUserEdited(true);
+    setPrefillNote("");
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!dateValue) {
+    if (!selectedDate) {
       setError("Please pick a date.");
       return;
     }
@@ -19,7 +91,8 @@ function PregnancySetup() {
     setError("");
     try {
       const token = localStorage.getItem("token");
-      const body = mode === "dueDate" ? { dueDate: dateValue } : { lastPeriod: dateValue };
+      const dateStr = formatLocalYMD(selectedDate);
+      const body = mode === "dueDate" ? { dueDate: dateStr } : { lastPeriod: dateStr };
 
       const res = await fetch("http://localhost:5000/api/pregnancy-info", {
         method: "POST",
@@ -55,7 +128,7 @@ function PregnancySetup() {
           <div className="flex gap-2 mb-5">
             <button
               type="button"
-              onClick={() => setMode("dueDate")}
+              onClick={() => handleModeChange("dueDate")}
               className={`flex-1 text-sm py-2 rounded-lg transition-colors ${
                 mode === "dueDate"
                   ? "bg-[#C2597A] text-white"
@@ -66,7 +139,7 @@ function PregnancySetup() {
             </button>
             <button
               type="button"
-              onClick={() => setMode("lastPeriod")}
+              onClick={() => handleModeChange("lastPeriod")}
               className={`flex-1 text-sm py-2 rounded-lg transition-colors ${
                 mode === "lastPeriod"
                   ? "bg-[#C2597A] text-white"
@@ -78,21 +151,24 @@ function PregnancySetup() {
           </div>
 
           <form onSubmit={handleSubmit}>
-            <label className="block text-xs text-gray-400 mb-1.5">
-              {mode === "dueDate" ? "Due date" : "First day of last period"}
-            </label>
-            <input
-              type="date"
-              value={dateValue}
-              onChange={(e) => setDateValue(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 mb-1 focus:outline-none focus:border-[#C2597A]"
+            <MiniCalendarPicker
+              label={mode === "dueDate" ? "Due date" : "First day of last period"}
+              value={selectedDate}
+              onChange={handleDateChange}
+              maxDate={mode === "lastPeriod" ? new Date() : undefined}
             />
-            {mode === "lastPeriod" && (
-              <p className="text-xs text-gray-400 mb-4">
+
+            {prefillNote && (
+              <p className="text-xs mt-1.5 mb-1" style={{ color: "#C2597A" }}>{prefillNote}</p>
+            )}
+
+            {mode === "lastPeriod" && !prefillNote && (
+              <p className="text-xs text-gray-400 mt-1.5 mb-1">
                 We'll estimate your due date as 40 weeks from this date.
               </p>
             )}
-            {mode === "dueDate" && <div className="mb-4" />}
+
+            <div className="mb-4" />
 
             {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
 

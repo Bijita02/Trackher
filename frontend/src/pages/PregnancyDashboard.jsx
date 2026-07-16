@@ -1,11 +1,26 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ChatBot from "../components/chatbot";
+import StatusPopup from "../components/statuspopup";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const TOTAL_PREGNANCY_DAYS = 280;
-
 const POSTPARTUM_BUFFER_DAYS = 42;
+
+// Same brand palette as Dashboard.jsx / PregnancyDetails.jsx, so all three pages feel like one app
+const BRAND = {
+  ink: "#241220",
+  muted: "#8F8290",
+  pink: "#E23670",
+  pinkSoft: "#FCE1EA",
+  border: "#FDE3EC",
+};
+
+const TRIMESTER = {
+  first: { label: "First trimester", color: "#8C7CD6", soft: "#EAE5FA" },
+  second: { label: "Second trimester", color: "#F2A93B", soft: "#FDF0DC" },
+  third: { label: "Third trimester", color: "#E23670", soft: "#FCE1EA" },
+};
 
 const BABY_SIZE_BY_WEEK = {
   4: { emoji: "🌱", thing: "a poppy seed", note: "Implantation is just happening — most people don't know yet." },
@@ -52,53 +67,64 @@ const getBabySize = (week) => {
   return BABY_SIZE_BY_WEEK[clamped];
 };
 
-const TRIMESTERS = [
-  { key: "first", label: "First trimester", range: [1, 13], color: "#F0C48F" },
-  { key: "second", label: "Second trimester", range: [14, 27], color: "#D97E3D" },
-  { key: "third", label: "Third trimester", range: [28, 40], color: "#7A3349" },
-];
+const trimesterForWeek = (week) => {
+  if (week <= 13) return "first";
+  if (week <= 27) return "second";
+  return "third";
+};
 
 function PregnancyDashboard() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isVibeOpen, setIsVibeOpen] = useState(false);
   const [endingPregnancy, setEndingPregnancy] = useState(false);
 
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const userId = localStorage.getItem("userId");
-        const token = localStorage.getItem("token");
-        if (!userId || !token) {
-          setLoading(false);
+  const fetchUser = async () => {
+    try {
+      const userId = localStorage.getItem("userId");
+      const token = localStorage.getItem("token");
+
+      if (!userId || !token) {
+        setLoading(false);
+        navigate("/login", { replace: true });
+        return;
+      }
+
+      const res = await fetch(`http://localhost:5000/api/users/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("userId");
+        navigate("/login", { replace: true });
+        return;
+      }
+
+      const data = await res.json();
+      setUser(data);
+
+      const dueDateStr = data?.pregnancyInfo?.dueDate;
+      if (dueDateStr) {
+        const dueDate = new Date(dueDateStr);
+        const daysPastDue = (Date.now() - dueDate.getTime()) / MS_PER_DAY;
+        if (daysPastDue >= POSTPARTUM_BUFFER_DAYS) {
+          navigate("/dashboard", { replace: true });
           return;
         }
-
-        const res = await fetch(`http://localhost:5000/api/users/${userId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) throw new Error("Failed to fetch user");
-
-        const data = await res.json();
-        setUser(data);
-
-        const dueDateStr = data?.pregnancyInfo?.dueDate;
-        if (dueDateStr) {
-          const dueDate = new Date(dueDateStr);
-          const daysPastDue = (Date.now() - dueDate.getTime()) / MS_PER_DAY;
-          if (daysPastDue >= POSTPARTUM_BUFFER_DAYS) {
-            navigate("/dashboard", { replace: true });
-            return;
-          }
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
       }
-    };
+    } catch (err) {
+      console.error(err);
+    } finally {
+      if (loading) setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchUser();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleEndPregnancy = async () => {
@@ -110,15 +136,11 @@ function PregnancyDashboard() {
     setEndingPregnancy(true);
     try {
       const token = localStorage.getItem("token");
-
       const res = await fetch("http://localhost:5000/api/pregnancy-info", {
         method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error("Failed to end pregnancy tracking");
-
       navigate("/dashboard", { replace: true });
     } catch (err) {
       console.error(err);
@@ -129,27 +151,31 @@ function PregnancyDashboard() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-sm text-gray-400 animate-pulse">Loading...</p>
+      <div className="flex items-center justify-center min-h-screen bg-[#FDF6F3]">
+        <p className="text-sm animate-pulse" style={{ color: BRAND.muted }}>Loading...</p>
       </div>
     );
   }
 
   const dueDate = user?.pregnancyInfo?.dueDate ? new Date(user.pregnancyInfo.dueDate) : null;
 
-  // No pregnancy data yet
   if (!dueDate) {
     return (
-      <div className="min-h-screen bg-[#FAF7F5] flex items-center justify-center px-6">
+      <div className="min-h-screen bg-[#FDF6F3] flex items-center justify-center px-6" style={{ fontFamily: "'Inter', sans-serif" }}>
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap');
+          .fr-display { font-family: 'Fraunces', serif; }
+        `}</style>
         <div className="text-center max-w-sm">
           <p className="text-4xl mb-4">🤰</p>
-          <p className="text-gray-700 font-semibold mb-1">No due date set yet</p>
-          <p className="text-sm text-gray-400 mb-6">
+          <p className="font-semibold mb-1" style={{ color: BRAND.ink }}>No due date set yet</p>
+          <p className="text-sm mb-6" style={{ color: BRAND.muted }}>
             Add your due date or last period to see your pregnancy overview.
           </p>
           <button
             onClick={() => navigate("/pregnancy-setup")}
-            className="bg-[#C2597A] text-white px-6 py-2.5 rounded-lg text-sm hover:bg-[#7A3349] transition-colors"
+            className="text-white px-6 py-2.5 rounded-full text-sm font-semibold transition-colors"
+            style={{ background: BRAND.pink }}
           >
             Set up pregnancy tracking
           </button>
@@ -161,173 +187,188 @@ function PregnancyDashboard() {
   const today = new Date();
   const daysElapsed = TOTAL_PREGNANCY_DAYS - Math.ceil((dueDate.getTime() - today.getTime()) / MS_PER_DAY);
   const clampedDaysElapsed = Math.min(TOTAL_PREGNANCY_DAYS, Math.max(0, daysElapsed));
-
   const weeksPregnant = Math.floor(clampedDaysElapsed / 7);
   const dayIntoWeek = clampedDaysElapsed % 7;
-  const displayWeek = Math.min(40, weeksPregnant + 1); 
+  const displayWeek = Math.min(40, weeksPregnant + 1);
+  const trimester = trimesterForWeek(displayWeek);
+  const babySize = getBabySize(displayWeek);
+  const progressPct = Math.min(100, (clampedDaysElapsed / TOTAL_PREGNANCY_DAYS) * 100);
 
   const daysUntilDue = Math.max(0, Math.ceil((dueDate.getTime() - today.getTime()) / MS_PER_DAY));
   const weeksUntilDue = Math.floor(daysUntilDue / 7);
   const remDaysUntilDue = daysUntilDue % 7;
 
-  const currentTrimester =
-    TRIMESTERS.find((t) => displayWeek >= t.range[0] && displayWeek <= t.range[1]) ||
-    TRIMESTERS[TRIMESTERS.length - 1];
-
-  const babySize = getBabySize(displayWeek);
-  const progressPct = Math.min(100, (clampedDaysElapsed / TOTAL_PREGNANCY_DAYS) * 100);
-
-  const formatDate = (d) =>
-    d?.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-
   return (
-    <div className="min-h-screen bg-[#FAF7F5] relative">
+    <div className="min-h-screen bg-[#FDF6F3] relative" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap');
+        .fr-display { font-family: 'Fraunces', serif; }
+      `}</style>
+
       <div className="max-w-3xl mx-auto p-6">
-        <div className="mb-8 flex justify-between items-start">
-          <div>
-            <h1 className="text-xl font-semibold text-gray-800">
-              Hello{user?.name ? `, ${user.name.split(" ")[0]}` : ""} 🤰
-            </h1>
-            <p className="text-sm text-gray-400">Here's your pregnancy overview</p>
-          </div>
-
-          <button
-            onClick={() => setIsChatOpen(true)}
-            className="w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center text-lg shadow-sm hover:border-[#C2597A] hover:text-[#C2597A] transition-colors"
-            title="Ask Luna"
+        <div className="mb-8">
+          <span
+            className="inline-block text-xs font-semibold px-3 py-1 rounded-full mb-3"
+            style={{ background: TRIMESTER[trimester].soft, color: TRIMESTER[trimester].color }}
           >
-            💬
-          </button>
+            Week {displayWeek} of your pregnancy
+          </span>
+          <h1 className="fr-display text-3xl leading-tight" style={{ color: BRAND.ink }}>
+            Hello{user?.name ? `, ${user.name.split(" ")[0]}` : ""}
+          </h1>
+          <p className="text-sm mt-1" style={{ color: BRAND.muted }}>Here's your pregnancy overview</p>
         </div>
 
-        {/* Week / trimester progress card */}
-        <div className="bg-white rounded-2xl p-6 mb-4 border border-gray-100">
-          <p className="text-base font-semibold text-gray-800">
-            Week {displayWeek}, Day {dayIntoWeek}
-          </p>
-          <p className="text-xs text-gray-400 mt-0.5 mb-5">{currentTrimester.label}</p>
+        <div className="bg-white rounded-2xl p-6 mb-4" style={{ border: `1px solid ${BRAND.border}` }}>
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-base font-semibold" style={{ color: BRAND.ink }}>
+              {displayWeek} weeks, {dayIntoWeek} days
+            </p>
+            <span className="text-xs" style={{ color: BRAND.muted }}>{weeksUntilDue}w {remDaysUntilDue}d to go</span>
+          </div>
+          <p className="text-xs mb-5" style={{ color: TRIMESTER[trimester].color }}>{TRIMESTER[trimester].label}</p>
 
-          <div className="relative pt-6 pb-1">
-            <div className="h-2 rounded-full bg-gray-100 relative overflow-hidden">
-              {TRIMESTERS.map((t) => {
-                const start = ((t.range[0] - 1) / 40) * 100;
-                const width = ((t.range[1] - t.range[0] + 1) / 40) * 100;
-                return (
-                  <div
-                    key={t.key}
-                    className="absolute top-0 h-full"
-                    style={{ left: `${start}%`, width: `${width}%`, backgroundColor: t.color }}
-                  />
-                );
-              })}
-            </div>
-
+          <div className="h-2 rounded-full relative overflow-hidden" style={{ background: BRAND.border }}>
             <div
-              className="absolute -top-1 flex flex-col items-center"
-              style={{ left: `${progressPct}%`, transform: "translateX(-50%)" }}
-            >
-              <div className="w-4 h-4 rounded-full bg-white border-2 border-[#7A3349] shadow-sm" />
-              <span className="text-[10px] font-semibold text-black bg-white px-1.5 rounded mt-1 whitespace-nowrap shadow-sm">
-                Today
-              </span>
-            </div>
+              className="absolute top-0 left-0 h-full rounded-full transition-all"
+              style={{ width: `${progressPct}%`, backgroundColor: BRAND.pink }}
+            />
           </div>
-
-          <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-4">
-            {TRIMESTERS.map((t) => (
-              <div key={t.key} className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: t.color }} />
-                <span
-                  className={`text-[11px] ${
-                    currentTrimester.key === t.key ? "font-semibold text-gray-700" : "text-gray-400"
-                  }`}
-                >
-                  {t.label}
-                </span>
-              </div>
-            ))}
-          </div>
+          <p className="text-xs mt-2" style={{ color: BRAND.muted }}>
+            Due {dueDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" })}
+          </p>
         </div>
 
-        {/* Due date countdown */}
-        <div className="bg-white rounded-2xl p-6 mb-4 border border-gray-100">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-400 mb-1">Due date</p>
-              <p className="text-xl font-semibold text-[#7A3349]">{formatDate(dueDate)}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-2xl font-semibold text-[#C2597A]">
-                {weeksUntilDue}w {remDaysUntilDue}d
-              </p>
-              <p className="text-xs text-gray-400">to go</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Baby size this week */}
-        <div className="bg-[#F6DCE3] rounded-2xl p-6 mb-4 border border-[#F0C7D1]">
-          <p className="text-xs text-[#7A3349]/70 mb-1">This week, your baby is about the size of</p>
+        <div className="rounded-2xl p-6 mb-4" style={{ background: BRAND.pinkSoft, border: `1px solid ${BRAND.border}` }}>
+          <p className="text-xs mb-1" style={{ color: BRAND.pink, opacity: 0.85 }}>This week, your baby is about the size of</p>
           <div className="flex items-center gap-4">
             <span className="text-5xl">{babySize.emoji}</span>
             <div>
-              <p className="text-lg font-semibold text-[#7A3349] capitalize">{babySize.thing}</p>
-              <p className="text-sm text-[#7A3349]/80 mt-1">{babySize.note}</p>
+              <p className="fr-display text-lg capitalize" style={{ color: BRAND.ink }}>{babySize.thing}</p>
+              <p className="text-sm mt-1" style={{ color: BRAND.muted }}>{babySize.note}</p>
             </div>
           </div>
         </div>
 
         <button
-          onClick={() => navigate("/cravings")}
-          className="w-full bg-white rounded-xl p-5 border border-gray-100 flex items-center justify-between hover:border-[#C2597A]/40 hover:shadow-sm transition-all group mb-3"
+          onClick={() => navigate("/pregnancy-calendar")}
+          className="w-full bg-white rounded-2xl p-5 flex items-center justify-between hover:shadow-sm transition-all group mb-3"
+          style={{ border: `1px solid ${BRAND.border}` }}
         >
           <div className="flex items-center gap-4">
-            <div className="w-11 h-11 rounded-full bg-[#F6DCE3] flex items-center justify-center text-xl group-hover:bg-[#F0C7D1] transition-colors">
-              🍫
+            <div
+              className="w-11 h-11 rounded-full flex items-center justify-center text-xl transition-colors"
+              style={{ background: BRAND.pinkSoft }}
+            >
+              📅
             </div>
             <div className="text-left">
-              <p className="text-sm font-semibold text-gray-800">Log a craving</p>
-              <p className="text-xs text-gray-400 mt-0.5">Track what you're craving today</p>
+              <p className="text-sm font-semibold" style={{ color: BRAND.ink }}>Pregnancy calendar</p>
+              <p className="text-xs mt-0.5" style={{ color: BRAND.muted }}>See your trimester timeline and milestones</p>
             </div>
           </div>
-          <svg className="w-4 h-4 text-gray-300 group-hover:text-[#C2597A] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
+          <ChevronIcon />
         </button>
 
         <button
-          onClick={() => setIsChatOpen(true)}
-          className="w-full bg-white rounded-xl p-5 border border-gray-100 flex items-center justify-between hover:border-[#C2597A]/40 hover:shadow-sm transition-all group mb-3"
+          onClick={() => navigate("/weight-tracker")}
+          className="w-full bg-white rounded-2xl p-5 flex items-center justify-between hover:shadow-sm transition-all group mb-3"
+          style={{ border: `1px solid ${BRAND.border}` }}
         >
           <div className="flex items-center gap-4">
-            <div className="w-11 h-11 rounded-full bg-[#F6DCE3] flex items-center justify-center text-xl group-hover:bg-[#F0C7D1] transition-colors">
-              💬
+            <div
+              className="w-11 h-11 rounded-full flex items-center justify-center text-xl transition-colors"
+              style={{ background: BRAND.pinkSoft }}
+            >
+              ⚖️
             </div>
             <div className="text-left">
-              <p className="text-sm font-semibold text-gray-800">Ask Luna a question</p>
-              <p className="text-xs text-gray-400 mt-0.5">Get answers to your doubts, any time</p>
+              <p className="text-sm font-semibold" style={{ color: BRAND.ink }}>Track your weight</p>
+              <p className="text-xs mt-0.5" style={{ color: BRAND.muted }}>Log entries and see your trend over time</p>
             </div>
           </div>
-          <svg className="w-4 h-4 text-gray-300 group-hover:text-[#C2597A] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
+          <ChevronIcon />
+        </button>
+
+        <button
+          onClick={() => navigate("/cravings")}
+          className="w-full bg-white rounded-2xl p-5 flex items-center justify-between hover:shadow-sm transition-all group mb-3"
+          style={{ border: `1px solid ${BRAND.border}` }}
+        >
+          <div className="flex items-center gap-4">
+            <div
+              className="w-11 h-11 rounded-full flex items-center justify-center text-xl transition-colors"
+              style={{ background: BRAND.pinkSoft }}
+            >
+              🍫
+            </div>
+            <div className="text-left">
+              <p className="text-sm font-semibold" style={{ color: BRAND.ink }}>Log a craving</p>
+              <p className="text-xs mt-0.5" style={{ color: BRAND.muted }}>Track what you're craving today</p>
+            </div>
+          </div>
+          <ChevronIcon />
         </button>
 
         <button
           onClick={handleEndPregnancy}
           disabled={endingPregnancy}
-          className="w-full bg-white rounded-xl p-4 border border-gray-200 text-center text-sm text-gray-500 hover:border-[#C2597A]/40 hover:text-[#7A3349] transition-colors disabled:opacity-50"
+          className="w-full bg-white rounded-2xl p-4 text-center text-sm transition-colors disabled:opacity-50"
+          style={{ border: `1px solid ${BRAND.border}`, color: BRAND.muted }}
         >
           {endingPregnancy ? "Ending pregnancy tracking…" : "End pregnancy tracking & return to cycle tracking"}
         </button>
       </div>
 
-      {isChatOpen && (
-        <div className="fixed bottom-6 right-6 z-50">
-          <ChatBot onClose={() => setIsChatOpen(false)} />
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
+        <div className="flex items-center gap-2 group">
+          <span className="bg-white text-gray-700 text-[11px] font-medium px-3 py-1.5 rounded-xl shadow-md border border-gray-100 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap">
+            Share your current status with your friends
+          </span>
+          <button
+            onClick={() => setIsVibeOpen(true)}
+            className="w-12 h-12 bg-amber-500 text-white rounded-full flex items-center justify-center text-xl shadow-lg hover:scale-110 transition-all duration-200 active:scale-95"
+            title="Circle Vibe Check"
+          >
+            💭
+          </button>
         </div>
-      )}
+
+        <div className="flex items-center gap-2 group">
+          <span className="bg-white text-gray-700 text-[11px] font-medium px-3 py-1.5 rounded-xl shadow-md border border-gray-100 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap">
+            Share with Luna Bot
+          </span>
+          <button
+            onClick={() => setIsChatOpen(true)}
+            className="w-12 h-12 text-white rounded-full flex items-center justify-center text-xl shadow-lg hover:scale-110 transition-all duration-200 active:scale-95"
+            style={{ background: BRAND.pink }}
+            title="Ask Luna Bot"
+          >
+            🤖
+          </button>
+        </div>
+
+        {isChatOpen && (
+          <div className="absolute bottom-16 right-0 z-50 w-80 sm:w-96 shadow-2xl rounded-3xl overflow-hidden bg-white border border-gray-100">
+            <ChatBot onClose={() => setIsChatOpen(false)} />
+          </div>
+        )}
+      </div>
+
+      <StatusPopup
+        isOpen={isVibeOpen}
+        onClose={() => setIsVibeOpen(false)}
+        currentUserName={user?.name || localStorage.getItem("userName") || "Meejala"}
+      />
     </div>
+  );
+}
+
+function ChevronIcon() {
+  return (
+    <svg className="w-4 h-4 flex-shrink-0 transition-colors" style={{ color: "#E5DEE1" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+    </svg>
   );
 }
 

@@ -10,8 +10,6 @@ export function addDays(date, n) {
   return d;
 }
 
-// Collects every known real period-start date (lastPeriodStart + history),
-// deduped and sorted oldest -> newest.
 function getSortedAnchors(cycle) {
   const raw = cycle.periodStarts && cycle.periodStarts.length > 0
     ? cycle.periodStarts
@@ -19,11 +17,6 @@ function getSortedAnchors(cycle) {
   return [...new Set(raw.map(stripTime))].sort((a, b) => a - b);
 }
 
-// FIXED: previously always measured every date's distance from the single
-// most recent lastPeriodStart, which silently rewrote past months whenever
-// a newer period was logged (June 25 got overwritten by a backward
-// projection from July 10). Now it anchors each date to the closest REAL
-// logged period start on or before it, so historical dates stay accurate.
 export function dayInCycle(date, cycle) {
   const anchors = getSortedAnchors(cycle);
   const targetTime = stripTime(date);
@@ -36,9 +29,6 @@ export function dayInCycle(date, cycle) {
     }
   }
 
-  // Date is before the earliest logged period: fall back to projecting
-  // backward from that earliest known start (best guess, since there's no
-  // real data further back).
   if (anchor === null) {
     anchor = anchors[0];
   }

@@ -13,6 +13,9 @@ import PregnancySetup from "./pages/PregnancySetup";
 import CycleStatsPage from "./pages/CycleStatsPage";
 import StatusFeed from "./pages/StatusFeed";
 import Calendar from "./pages/calendar";
+import Weighttracker from "./pages/Weighttracker";
+import Cravings from "./pages/Cravings";
+import PregnancyCalendarPage from "./pages/PregnancyCalendarPage";
 
 function App() {
   return (
@@ -30,8 +33,11 @@ function App() {
           <Route path="/pregnancy-dashboard" element={<PregnancyDashboard />} />
           <Route path="/pregnancy-setup" element={<PregnancySetup />} />
           <Route path="/cycle-details" element={<CycleDetails />} />
-                    <Route path="/cycle-stats" element={<CycleStatsPage />} />
+          <Route path="/cycle-stats" element={<CycleStatsPage />} />
           <Route path="/calendar" element={<Calendar />} />
+          <Route path="/pregnancy-calendar" element={<PregnancyCalendarPage />} />
+          <Route path="/weight-tracker" element={<Weighttracker />} />
+          <Route path="/cravings" element={<Cravings />} />
         </Routes>
       </div>
     </Router>
