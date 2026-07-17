@@ -8,14 +8,14 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const validator = require("validator");
 const User = require("./models/User");
-const symptomsRoute = require("./routes/SymptomsRoute");
-const AiChatRoute = require("./routes/AiChatRoute");
-const statusRoutes = require('./Routes/statusRoutes');
-const weightRoute = require("./routes/WeightRoute");
-const cravingsRoute = require("./routes/CravingsRoute");
+const symptomsRoute = require("./Routes/SymptomsRoute");
+const AiChatRoute = require("./Routes/AiChatRoute");
+const statusRoutes = require("./Routes/statusRoutes");
+const weightRoute = require("./Routes/WeightRoute");
+const cravingsRoute = require("./Routes/Cravingsroute");
+const pregnancyReminderRoute = require("./Routes/Pregnancyreminderroute");
 
 const app = express();
-
 app.use(cors());
 app.use(express.json());
 
@@ -234,6 +234,7 @@ app.use("/api/symptoms", symptomsRoute);
 app.use("/api/ai", AiChatRoute);
 app.use("/api/weight", weightRoute);
 app.use("/api/cravings", cravingsRoute);
+app.use("/api/pregnancy-reminders", pregnancyReminderRoute);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
