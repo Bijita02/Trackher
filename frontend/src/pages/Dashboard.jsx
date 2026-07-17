@@ -15,7 +15,6 @@ import {
 
 const POSTPARTUM_BUFFER_DAYS = 42;
 
-// Same brand palette as cycledetails.jsx, so the dashboard and calendar feel like one app
 const BRAND = {
   ink: "#241220",
   muted: "#8F8290",

@@ -7,7 +7,6 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const TOTAL_PREGNANCY_DAYS = 280;
 const POSTPARTUM_BUFFER_DAYS = 42;
 
-// Same brand palette as Dashboard.jsx / PregnancyDetails.jsx, so all three pages feel like one app
 const BRAND = {
   ink: "#241220",
   muted: "#8F8290",
@@ -124,7 +123,6 @@ function PregnancyDashboard() {
 
   useEffect(() => {
     fetchUser();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleEndPregnancy = async () => {
@@ -192,11 +190,8 @@ function PregnancyDashboard() {
   const displayWeek = Math.min(40, weeksPregnant + 1);
   const trimester = trimesterForWeek(displayWeek);
   const babySize = getBabySize(displayWeek);
-  const progressPct = Math.min(100, (clampedDaysElapsed / TOTAL_PREGNANCY_DAYS) * 100);
 
   const daysUntilDue = Math.max(0, Math.ceil((dueDate.getTime() - today.getTime()) / MS_PER_DAY));
-  const weeksUntilDue = Math.floor(daysUntilDue / 7);
-  const remDaysUntilDue = daysUntilDue % 7;
 
   return (
     <div className="min-h-screen bg-[#FDF6F3] relative" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -219,23 +214,21 @@ function PregnancyDashboard() {
           <p className="text-sm mt-1" style={{ color: BRAND.muted }}>Here's your pregnancy overview</p>
         </div>
 
-        <div className="bg-white rounded-2xl p-6 mb-4" style={{ border: `1px solid ${BRAND.border}` }}>
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-base font-semibold" style={{ color: BRAND.ink }}>
-              {displayWeek} weeks, {dayIntoWeek} days
-            </p>
-            <span className="text-xs" style={{ color: BRAND.muted }}>{weeksUntilDue}w {remDaysUntilDue}d to go</span>
-          </div>
-          <p className="text-xs mb-5" style={{ color: TRIMESTER[trimester].color }}>{TRIMESTER[trimester].label}</p>
-
-          <div className="h-2 rounded-full relative overflow-hidden" style={{ background: BRAND.border }}>
-            <div
-              className="absolute top-0 left-0 h-full rounded-full transition-all"
-              style={{ width: `${progressPct}%`, backgroundColor: BRAND.pink }}
-            />
-          </div>
-          <p className="text-xs mt-2" style={{ color: BRAND.muted }}>
-            Due {dueDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" })}
+        <div
+          className="rounded-2xl p-6 mb-4 bg-white flex flex-col items-center"
+          style={{ border: `1px solid ${BRAND.border}` }}
+        >
+          <PregnancyRing daysElapsed={clampedDaysElapsed} trimester={trimester} />
+          <h2 className="fr-display text-3xl mt-4 mb-1 text-center" style={{ color: BRAND.ink }}>
+            Week {displayWeek}, day {dayIntoWeek}
+          </h2>
+          <p className="text-sm" style={{ color: BRAND.muted }}>{TRIMESTER[trimester].label}</p>
+          <p
+            className="text-xs mt-3 inline-block px-4 py-1.5 rounded-full"
+            style={{ background: TRIMESTER[trimester].soft, color: TRIMESTER[trimester].color }}
+          >
+            Due in {daysUntilDue} day{daysUntilDue === 1 ? "" : "s"} ·{" "}
+            {dueDate.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
           </p>
         </div>
 
@@ -361,6 +354,59 @@ function PregnancyDashboard() {
         currentUserName={user?.name || localStorage.getItem("userName") || "Meejala"}
       />
     </div>
+  );
+}
+
+function PregnancyRing({ daysElapsed, trimester }) {
+  const size = 160;
+  const stroke = 14;
+  const r = (size - stroke) / 2;
+  const c = size / 2;
+  const circumference = 2 * Math.PI * r;
+
+  const segments = [
+    { key: "first", start: 0, end: 91, color: TRIMESTER.first.color },
+    { key: "second", start: 91, end: 189, color: TRIMESTER.second.color },
+    { key: "third", start: 189, end: 280, color: TRIMESTER.third.color },
+  ];
+
+  const todayAngle = (daysElapsed / TOTAL_PREGNANCY_DAYS) * 360 - 90;
+  const markerX = c + r * Math.cos((todayAngle * Math.PI) / 180);
+  const markerY = c + r * Math.sin((todayAngle * Math.PI) / 180);
+  const markerColor = TRIMESTER[trimester].color;
+
+  const displayWeek = Math.min(40, Math.ceil(daysElapsed / 7) || 1);
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      {segments.map((seg) => {
+        const len = ((seg.end - seg.start) / TOTAL_PREGNANCY_DAYS) * circumference;
+        const gap = 3;
+        const offset = (seg.start / TOTAL_PREGNANCY_DAYS) * circumference;
+        return (
+          <circle
+            key={seg.key}
+            cx={c}
+            cy={c}
+            r={r}
+            fill="none"
+            stroke={seg.color}
+            strokeWidth={stroke}
+            strokeDasharray={`${Math.max(len - gap, 0)} ${circumference - len + gap}`}
+            strokeDashoffset={-offset}
+            strokeLinecap="round"
+            transform={`rotate(-90 ${c} ${c})`}
+          />
+        );
+      })}
+      <circle cx={markerX} cy={markerY} r={6} fill="#fff" stroke={markerColor} strokeWidth={3} />
+      <text x={c} y={c - 4} textAnchor="middle" fontSize="22" fontWeight="700" fill={BRAND.ink} fontFamily="'Fraunces', serif">
+        {displayWeek}
+      </text>
+      <text x={c} y={c + 14} textAnchor="middle" fontSize="10" fill="#B7A8B1">
+        of 40 weeks
+      </text>
+    </svg>
   );
 }
 

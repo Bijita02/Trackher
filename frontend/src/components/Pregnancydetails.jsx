@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Sprout, Sun, Heart, Pencil, Check, X, Loader2 } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight, Sprout, Sun, Heart, Pencil, Check, X, Loader2, Star, CalendarClock, Trash2, Plus } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, BarChart, Bar, Cell, ReferenceDot,
@@ -23,6 +23,11 @@ const TRIMESTER = {
   third: { label: "Third trimester", color: "#E23670", soft: "#FCE1EA", icon: Heart },
 };
 
+const REMINDER_TYPE = {
+  appointment: { label: "Appointment", color: "#8C7CD6", icon: CalendarClock, emoji: "🩺" },
+  important: { label: "Important day", color: "#F2A93B", icon: Star, emoji: "🎉" },
+};
+
 export default function PregnancyDetails({
   dueDate,
   apiBaseUrl = "/api",
@@ -44,8 +49,76 @@ export default function PregnancyDetails({
   const [saveError, setSaveError] = useState(null);
 
   const [dayModalDate, setDayModalDate] = useState(null);
-  const [modalSaving, setModalSaving] = useState(false);
-  const [modalError, setModalError] = useState(null);
+
+  const [reminders, setReminders] = useState([]);
+  const [remindersLoading, setRemindersLoading] = useState(true);
+
+  const authHeaders = {
+    "Content-Type": "application/json",
+    ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchReminders() {
+      try {
+        const res = await fetch(`${apiBaseUrl}/pregnancy-reminders`, {
+          headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setReminders(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        if (!cancelled) setRemindersLoading(false);
+      }
+    }
+    fetchReminders();
+    return () => {
+      cancelled = true;
+    };
+
+  }, [apiBaseUrl, authToken]);
+
+  const remindersForDate = (date) =>
+    reminders.filter((r) => stripTime(new Date(r.date)) === stripTime(date));
+
+  async function createReminder(date, { title, note, time, type }) {
+    const res = await fetch(`${apiBaseUrl}/pregnancy-reminders`, {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({ date: toInputDate(date), title, note, time, type }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || "Couldn't save that reminder.");
+    setReminders((prev) => [...prev, data]);
+    return data;
+  }
+
+  async function updateReminder(id, { title, note, time, type, date }) {
+    const res = await fetch(`${apiBaseUrl}/pregnancy-reminders/${id}`, {
+      method: "PUT",
+      headers: authHeaders,
+      body: JSON.stringify({ date: toInputDate(date), title, note, time, type }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || "Couldn't update that reminder.");
+    setReminders((prev) => prev.map((r) => (r._id === id ? data : r)));
+    return data;
+  }
+
+  async function deleteReminder(id) {
+    const res = await fetch(`${apiBaseUrl}/pregnancy-reminders/${id}`, {
+      method: "DELETE",
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data?.error || "Couldn't delete that reminder.");
+    }
+    setReminders((prev) => prev.filter((r) => r._id !== id));
+  }
 
   const rawTodayDay = dayInPregnancy(today, pregnancy);
   const todayDay = Math.min(TOTAL_PREGNANCY_DAYS, Math.max(1, rawTodayDay));
@@ -64,6 +137,14 @@ export default function PregnancyDetails({
   }, []);
 
   const milestoneData = useMemo(() => upcomingMilestones(todayDay), [todayDay]);
+
+  // Upcoming reminders (today onward), soonest first, for the list under the calendar
+  const upcomingReminders = useMemo(() => {
+    return reminders
+      .filter((r) => stripTime(new Date(r.date)) >= stripTime(today))
+      .sort((a, b) => new Date(a.date) - new Date(b.date))
+      .slice(0, 5);
+  }, [reminders, today]);
 
   async function persistDueDate(dateStr) {
     const res = await fetch(`${apiBaseUrl}/pregnancy-info`, {
@@ -116,28 +197,12 @@ export default function PregnancyDetails({
     setSaveError(null);
   }
 
-  async function handleSetDueDateFromModal() {
-    if (!dayModalDate) return;
-    setModalSaving(true);
-    setModalError(null);
-    try {
-      await persistDueDate(toInputDate(dayModalDate));
-      setDayModalDate(null);
-    } catch (err) {
-      setModalError(err.message);
-    } finally {
-      setModalSaving(false);
-    }
-  }
-
   function handleDayClick(date) {
-    setModalError(null);
     setDayModalDate(date);
   }
 
   function closeDayModal() {
     setDayModalDate(null);
-    setModalError(null);
   }
 
   const calendarCard = (
@@ -177,6 +242,8 @@ export default function PregnancyDetails({
           const trimester = inRange ? trimesterForWeek(weekForDay(day)) : null;
           const isToday = stripTime(cell.date) === stripTime(today);
           const isDueDate = stripTime(cell.date) === stripTime(resolvedDueDate);
+          const dayReminders = remindersForDate(cell.date);
+          const badgeTypes = [...new Set(dayReminders.map((r) => r.type))];
 
           return (
             <button
@@ -194,6 +261,28 @@ export default function PregnancyDetails({
               onMouseEnter={(e) => { e.currentTarget.style.transform = "scale(1.06)"; }}
               onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
             >
+              {badgeTypes.length > 0 && (
+                <div className="absolute -top-1.5 -right-1.5 flex items-center">
+                  {badgeTypes.map((type) => (
+                    <span
+                      key={type}
+                      className="flex items-center justify-center rounded-full shadow-sm"
+                      style={{
+                        width: 18,
+                        height: 18,
+                        fontSize: 11,
+                        lineHeight: 1,
+                        background: "#fff",
+                        border: `1.5px solid ${REMINDER_TYPE[type]?.color || "#8C7CD6"}`,
+                        marginLeft: -6,
+                      }}
+                      title={REMINDER_TYPE[type]?.label}
+                    >
+                      {REMINDER_TYPE[type]?.emoji}
+                    </span>
+                  ))}
+                </div>
+              )}
               <span style={{ fontWeight: isToday ? 700 : 500 }}>{cell.date.getDate()}</span>
               {isDueDate && (
                 <span className="absolute bottom-1 w-1 h-1 rounded-full" style={{ background: "#E23670" }} />
@@ -210,7 +299,59 @@ export default function PregnancyDetails({
             {t.label}
           </div>
         ))}
+        <div className="flex items-center gap-2 text-xs" style={{ color: "#8F8290" }}>
+          <span>{REMINDER_TYPE.appointment.emoji}</span>
+          Appointment
+        </div>
+        <div className="flex items-center gap-2 text-xs" style={{ color: "#8F8290" }}>
+          <span>{REMINDER_TYPE.important.emoji}</span>
+          Important day
+        </div>
       </div>
+    </div>
+  );
+
+  const upcomingRemindersCard = !remindersLoading && (
+    <div
+      className={showStats ? "lg:col-span-3 rounded-2xl p-6 mt-6" : "rounded-2xl p-6 mt-6"}
+      style={{ background: "#fff", border: "1px solid #FDE3EC" }}
+    >
+      <h3 className="fr-display text-lg mb-1" style={{ color: "#241220" }}>Upcoming</h3>
+      <p className="text-xs mb-4" style={{ color: "#8F8290" }}>Appointments & important days</p>
+
+      {upcomingReminders.length === 0 ? (
+        <p className="text-sm" style={{ color: "#8F8290" }}>
+          Nothing coming up. Click any day on the calendar to add an appointment or mark an important day.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {upcomingReminders.map((r) => {
+            const t = REMINDER_TYPE[r.type] || REMINDER_TYPE.appointment;
+            return (
+              <button
+                key={r._id}
+                onClick={() => setDayModalDate(new Date(r.date))}
+                className="flex items-center gap-3 p-3 rounded-xl text-left hover:bg-rose-50 transition"
+                style={{ border: "1px solid #FBE7EF" }}
+              >
+                <div
+                  className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-base"
+                  style={{ background: `${t.color}22` }}
+                >
+                  {t.emoji}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate" style={{ color: "#241220" }}>{r.title}</p>
+                  <p className="text-xs" style={{ color: "#8F8290" }}>
+                    {new Date(r.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    {r.time ? ` · ${r.time}` : ""}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 
@@ -242,82 +383,78 @@ export default function PregnancyDetails({
         {showStats ? (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {calendarCard}
-<div
-  className="rounded-2xl p-6 flex flex-col items-center"
-  style={{ background: "#fff", border: "1px solid #FDE3EC" }}
->
-  <div className="w-full flex justify-end mb-1">
-    {!isEditing && (
-      <button
-        onClick={openEditor}
-        className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full hover:bg-rose-50 transition"
-        style={{ color: "#B96C87" }}
-      >
-        <Pencil size={12} /> Edit due date
-      </button>
-    )}
-  </div>
 
-  <TrimesterRing todayDay={todayDay} trimester={todayTrimester} />
+            <div className="rounded-2xl p-6 flex flex-col items-center" style={{ background: "#fff", border: "1px solid #FDE3EC" }}>
+              <div className="w-full flex justify-end mb-1">
+                {!isEditing && (
+                  <button
+                    onClick={openEditor}
+                    className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full hover:bg-rose-50 transition"
+                    style={{ color: "#B96C87" }}
+                  >
+                    <Pencil size={12} /> Edit due date
+                  </button>
+                )}
+              </div>
 
-  <h2 className="fr-display text-3xl mt-4 mb-1 text-center" style={{ color: "#241220" }}>
-    Week {todayWeek} of your pregnancy
-  </h2>
-  <p className="text-sm" style={{ color: "#8F8290" }}>
-    {TRIMESTER[todayTrimester].label}
-  </p>
-  <p
-    className="text-xs mt-3 inline-block px-4 py-1.5 rounded-full"
-    style={{ background: TRIMESTER[todayTrimester].soft, color: TRIMESTER[todayTrimester].color }}
-  >
-    Due in {daysUntil} day{daysUntil === 1 ? "" : "s"} ·{" "}
-    {resolvedDueDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-  </p>
+              <TrimesterRing todayDay={todayDay} trimester={todayTrimester} />
+              <h2 className="fr-display text-3xl mt-4 mb-1 text-center" style={{ color: "#241220" }}>
+                Week {todayWeek} of your pregnancy
+              </h2>
+              <p className="text-sm" style={{ color: "#8F8290" }}>{TRIMESTER[todayTrimester].label}</p>
+              <p
+                className="text-xs mt-3 inline-block px-4 py-1.5 rounded-full"
+                style={{ background: TRIMESTER[todayTrimester].soft, color: TRIMESTER[todayTrimester].color }}
+              >
+                Due in {daysUntil} day{daysUntil === 1 ? "" : "s"} ·{" "}
+                {resolvedDueDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+              </p>
 
-  {isEditing && (
-    <div className="w-full mt-5 pt-5" style={{ borderTop: "1px solid #FBE7EF" }}>
-      <label className="block text-xs font-medium mb-1.5" style={{ color: "#8F8290" }}>
-        Due date
-      </label>
-      <input
-        type="date"
-        value={editDate}
-        onChange={(e) => setEditDate(e.target.value)}
-        className="w-full text-sm px-3 py-2 rounded-lg outline-none"
-        style={{ border: "1px solid #FDE3EC", color: "#241220" }}
-      />
+              {isEditing && (
+                <div className="w-full mt-5 pt-5" style={{ borderTop: "1px solid #FBE7EF" }}>
+                  <label className="block text-xs font-medium mb-1.5" style={{ color: "#8F8290" }}>
+                    Due date
+                  </label>
+                  <input
+                    type="date"
+                    value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
+                    className="w-full text-sm px-3 py-2 rounded-lg outline-none"
+                    style={{ border: "1px solid #FDE3EC", color: "#241220" }}
+                  />
 
-      {saveError && (
-        <p className="text-xs mt-2" style={{ color: "#E23670" }}>{saveError}</p>
-      )}
+                  {saveError && (
+                    <p className="text-xs mt-2" style={{ color: "#E23670" }}>{saveError}</p>
+                  )}
 
-      <div className="flex gap-2 mt-3">
-        <button
-          onClick={handleSaveDueDate}
-          disabled={saving}
-          className="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium py-2 rounded-lg transition disabled:opacity-60"
-          style={{ background: "#E23670", color: "#fff" }}
-        >
-          {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-          {saving ? "Saving…" : "Save"}
-        </button>
-        <button
-          onClick={cancelEditor}
-          disabled={saving}
-          className="flex items-center justify-center gap-1.5 text-sm font-medium px-3 py-2 rounded-lg transition disabled:opacity-60"
-          style={{ background: "#FCE1EA", color: "#8F8290" }}
-        >
-          <X size={14} />
-        </button>
-      </div>
-    </div>
-  )}
-</div>
- 
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={handleSaveDueDate}
+                      disabled={saving}
+                      className="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium py-2 rounded-lg transition disabled:opacity-60"
+                      style={{ background: "#E23670", color: "#fff" }}
+                    >
+                      {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                      {saving ? "Saving…" : "Save"}
+                    </button>
+                    <button
+                      onClick={cancelEditor}
+                      disabled={saving}
+                      className="flex items-center justify-center gap-1.5 text-sm font-medium px-3 py-2 rounded-lg transition disabled:opacity-60"
+                      style={{ background: "#FCE1EA", color: "#8F8290" }}
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         ) : (
           calendarCard
         )}
+
+        {upcomingRemindersCard}
 
         {showStats && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
@@ -373,22 +510,46 @@ export default function PregnancyDetails({
         <DayPopup
           date={dayModalDate}
           pregnancy={pregnancy}
-          saving={modalSaving}
-          error={modalError}
+          reminders={remindersForDate(dayModalDate)}
           onClose={closeDayModal}
-          onSetDueDate={handleSetDueDateFromModal}
+          onSetDueDate={persistDueDate}
+          onCreateReminder={createReminder}
+          onUpdateReminder={updateReminder}
+          onDeleteReminder={deleteReminder}
         />
       )}
     </div>
   );
 }
 
-function DayPopup({ date, pregnancy, saving, error, onClose, onSetDueDate }) {
+function DayPopup({
+  date,
+  pregnancy,
+  reminders,
+  onClose,
+  onSetDueDate,
+  onCreateReminder,
+  onUpdateReminder,
+  onDeleteReminder,
+}) {
   const day = dayInPregnancy(date, pregnancy);
   const inRange = day >= 1 && day <= TOTAL_PREGNANCY_DAYS;
   const week = inRange ? weekForDay(day) : null;
   const trimester = inRange ? trimesterForWeek(week) : null;
   const t = trimester ? TRIMESTER[trimester] : null;
+
+  const [dueDateSaving, setDueDateSaving] = useState(false);
+  const [dueDateError, setDueDateError] = useState(null);
+
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [formTitle, setFormTitle] = useState("");
+  const [formTime, setFormTime] = useState("");
+  const [formNote, setFormNote] = useState("");
+  const [formType, setFormType] = useState("appointment");
+  const [formSaving, setFormSaving] = useState(false);
+  const [formError, setFormError] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   const dateLabel = date.toLocaleDateString("en-US", {
     weekday: "long",
@@ -397,6 +558,87 @@ function DayPopup({ date, pregnancy, saving, error, onClose, onSetDueDate }) {
     year: "numeric",
   });
 
+  function openNewForm() {
+    setEditingId(null);
+    setFormTitle("");
+    setFormTime("");
+    setFormNote("");
+    setFormType("appointment");
+    setFormError(null);
+    setShowForm(true);
+  }
+
+  function openEditForm(reminder) {
+    setEditingId(reminder._id);
+    setFormTitle(reminder.title);
+    setFormTime(reminder.time || "");
+    setFormNote(reminder.note || "");
+    setFormType(reminder.type || "appointment");
+    setFormError(null);
+    setShowForm(true);
+  }
+
+  function cancelForm() {
+    setShowForm(false);
+    setFormError(null);
+  }
+
+  async function handleSetDueDate() {
+    setDueDateSaving(true);
+    setDueDateError(null);
+    try {
+      await onSetDueDate(toInputDate(date));
+      onClose();
+    } catch (err) {
+      setDueDateError(err.message);
+    } finally {
+      setDueDateSaving(false);
+    }
+  }
+
+  async function handleSaveReminder() {
+    if (!formTitle.trim()) {
+      setFormError("Please add a title.");
+      return;
+    }
+    setFormSaving(true);
+    setFormError(null);
+    try {
+      if (editingId) {
+        await onUpdateReminder(editingId, {
+          date,
+          title: formTitle.trim(),
+          time: formTime,
+          note: formNote,
+          type: formType,
+        });
+      } else {
+        await onCreateReminder(date, {
+          title: formTitle.trim(),
+          time: formTime,
+          note: formNote,
+          type: formType,
+        });
+      }
+      setShowForm(false);
+    } catch (err) {
+      setFormError(err.message);
+    } finally {
+      setFormSaving(false);
+    }
+  }
+
+  async function handleDelete(id) {
+    setDeletingId(id);
+    try {
+      await onDeleteReminder(id);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center px-4"
@@ -404,7 +646,7 @@ function DayPopup({ date, pregnancy, saving, error, onClose, onSetDueDate }) {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-sm rounded-2xl p-6"
+        className="w-full max-w-sm rounded-2xl p-6 max-h-[85vh] overflow-y-auto"
         style={{ background: "#fff", fontFamily: "'Inter', sans-serif" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -426,8 +668,133 @@ function DayPopup({ date, pregnancy, saving, error, onClose, onSetDueDate }) {
           </button>
         </div>
 
+        {reminders.length > 0 && (
+          <div className="flex flex-col gap-2 mb-4">
+            {reminders.map((r) => {
+              const rt = REMINDER_TYPE[r.type] || REMINDER_TYPE.appointment;
+              return (
+                <div
+                  key={r._id}
+                  className="rounded-xl p-3 flex items-start gap-3"
+                  style={{ background: `${rt.color}14`, border: `1px solid ${rt.color}33` }}
+                >
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 text-sm"
+                    style={{ background: `${rt.color}26` }}
+                  >
+                    {rt.emoji}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium" style={{ color: "#241220" }}>{r.title}</p>
+                    {r.time && <p className="text-xs mt-0.5" style={{ color: "#8F8290" }}>{r.time}</p>}
+                    {r.note && <p className="text-xs mt-0.5" style={{ color: "#8F8290" }}>{r.note}</p>}
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button
+                      onClick={() => openEditForm(r)}
+                      className="p-1.5 rounded-full hover:bg-white/70 transition"
+                      aria-label="Edit reminder"
+                    >
+                      <Pencil size={13} color="#8F8290" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(r._id)}
+                      disabled={deletingId === r._id}
+                      className="p-1.5 rounded-full hover:bg-white/70 transition disabled:opacity-50"
+                      aria-label="Delete reminder"
+                    >
+                      {deletingId === r._id ? (
+                        <Loader2 size={13} className="animate-spin" color="#8F8290" />
+                      ) : (
+                        <Trash2 size={13} color="#8F8290" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {showForm ? (
+          <div className="rounded-xl p-4 mb-4" style={{ background: "#FAF7F6", border: "1px solid #FBE7EF" }}>
+            <div className="flex gap-2 mb-3">
+              {Object.entries(REMINDER_TYPE).map(([key, rt]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setFormType(key)}
+                  className="flex-1 flex items-center justify-center gap-1.5 text-xs font-medium py-2 rounded-lg transition"
+                  style={{
+                    background: formType === key ? rt.color : "#fff",
+                    color: formType === key ? "#fff" : "#8F8290",
+                    border: `1px solid ${formType === key ? rt.color : "#FDE3EC"}`,
+                  }}
+                >
+                  <span>{rt.emoji}</span> {rt.label}
+                </button>
+              ))}
+            </div>
+
+            <input
+              type="text"
+              value={formTitle}
+              onChange={(e) => setFormTitle(e.target.value)}
+              placeholder="e.g. Anatomy scan"
+              className="w-full text-sm px-3 py-2 rounded-lg outline-none mb-2"
+              style={{ border: "1px solid #FDE3EC", color: "#241220" }}
+            />
+            <input
+              type="time"
+              value={formTime}
+              onChange={(e) => setFormTime(e.target.value)}
+              className="w-full text-sm px-3 py-2 rounded-lg outline-none mb-2"
+              style={{ border: "1px solid #FDE3EC", color: "#241220" }}
+            />
+            <textarea
+              value={formNote}
+              onChange={(e) => setFormNote(e.target.value)}
+              placeholder="Notes (optional)"
+              rows={2}
+              className="w-full text-sm px-3 py-2 rounded-lg outline-none resize-none mb-2"
+              style={{ border: "1px solid #FDE3EC", color: "#241220" }}
+            />
+
+            {formError && <p className="text-xs mb-2" style={{ color: "#E23670" }}>{formError}</p>}
+
+            <div className="flex gap-2">
+              <button
+                onClick={handleSaveReminder}
+                disabled={formSaving}
+                className="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium py-2 rounded-lg transition disabled:opacity-60"
+                style={{ background: "#E23670", color: "#fff" }}
+              >
+                {formSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                {formSaving ? "Saving…" : editingId ? "Save changes" : "Add"}
+              </button>
+              <button
+                onClick={cancelForm}
+                disabled={formSaving}
+                className="flex items-center justify-center gap-1.5 text-sm font-medium px-3 py-2 rounded-lg transition disabled:opacity-60"
+                style={{ background: "#FCE1EA", color: "#8F8290" }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={openNewForm}
+            className="w-full flex items-center justify-center gap-1.5 text-sm font-medium py-2.5 rounded-lg mb-4 transition"
+            style={{ background: "#FCE1EA", color: "#B96C87" }}
+          >
+            <Plus size={14} /> Add appointment or important day
+          </button>
+        )}
+
+        {/* Set as due date */}
         <div
-          className="rounded-xl p-4 mb-4 flex items-center gap-3"
+          className="rounded-xl p-4 mb-3 flex items-center gap-3"
           style={{ background: t ? t.soft : "#F7F5F4" }}
         >
           <Heart size={18} color={t ? t.color : "#8F8290"} />
@@ -436,25 +803,25 @@ function DayPopup({ date, pregnancy, saving, error, onClose, onSetDueDate }) {
           </p>
         </div>
 
-        {error && <p className="text-xs mb-3" style={{ color: "#E23670" }}>{error}</p>}
+        {dueDateError && <p className="text-xs mb-3" style={{ color: "#E23670" }}>{dueDateError}</p>}
 
         <div className="flex gap-2">
           <button
-            onClick={onSetDueDate}
-            disabled={saving}
+            onClick={handleSetDueDate}
+            disabled={dueDateSaving}
             className="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium py-2.5 rounded-lg transition disabled:opacity-60"
             style={{ background: "#E23670", color: "#fff" }}
           >
-            {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-            {saving ? "Saving…" : "Set as due date"}
+            {dueDateSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+            {dueDateSaving ? "Saving…" : "Set as due date"}
           </button>
           <button
             onClick={onClose}
-            disabled={saving}
+            disabled={dueDateSaving}
             className="flex items-center justify-center gap-1.5 text-sm font-medium px-4 py-2.5 rounded-lg transition disabled:opacity-60"
             style={{ background: "#FCE1EA", color: "#8F8290" }}
           >
-            Cancel
+            Close
           </button>
         </div>
       </div>
