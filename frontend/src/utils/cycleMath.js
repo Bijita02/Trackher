@@ -98,3 +98,140 @@ export function fromInputDate(value) {
   const [y, m, d] = value.split("-").map(Number);
   return new Date(y, m - 1, d);
 }
+
+// ---------------------------------------------------------------------------
+// Notifications: derives period / fertile-window / PMS / wellness alerts
+// purely from cycle data. No backend storage needed — recalculated fresh
+// each time based on today's date vs. the user's cycle.
+//
+// Each notification may optionally include actionLabel/actionPath, which
+// the UI renders as a tappable button that navigates somewhere useful.
+// ---------------------------------------------------------------------------
+export function getCycleNotifications(cycle, today = new Date()) {
+  const notifications = [];
+  if (!cycle || !cycle.lastPeriodStart || !cycle.cycleLength || !cycle.periodLength) {
+    return notifications;
+  }
+
+  const anchors = getSortedAnchors(cycle);
+  const lastAnchor = anchors[anchors.length - 1];
+  const daysSinceAnchor = Math.floor((stripTime(today) - lastAnchor) / MS_PER_DAY);
+
+  const day = dayInCycle(today, cycle);
+  const rawPhase = phaseForDay(day, cycle);
+  const groupedPhase = groupPhase(rawPhase);
+  const ovulationDay = ovulationDayFor(cycle);
+  const daysToOvulation = ovulationDay - day;
+  const daysToNextPeriod = daysUntilNextPeriod(today, cycle);
+  const fertileWindowStartDay = ovulationDay - 4;
+
+  // --- Late period detection ---
+  // dayInCycle() always wraps into a new predicted cycle once cycleLength
+  // days pass, which silently assumes the period arrived on schedule. To
+  // detect genuine lateness we instead compare today directly against the
+  // last *logged* period start, ignoring that wraparound.
+  const isLate = daysSinceAnchor > cycle.cycleLength + 2 && daysSinceAnchor < cycle.cycleLength * 2;
+
+  if (isLate) {
+    notifications.push({
+      id: "period-late",
+      icon: "🌙",
+      title: "Your period seems late",
+      message: "Your period is a few days later than usual. Take a breath, or tap to log a test if needed.",
+    });
+  }
+
+  // --- Menstrual phase: on-period status + self-care tip ---
+  if (rawPhase === "menstrual") {
+    notifications.push({
+      id: "on-period",
+      icon: "🩸",
+      title: day === 1 ? "Period started" : "On your period",
+      message:
+        day === 1
+          ? "Today marks day 1 of your period."
+          : `You're on day ${day} of your period.`,
+    });
+
+    notifications.push({
+      id: "period-self-care",
+      icon: "🫗",
+      title: "Cramps acting up?",
+      message: "A hot water bottle or a magnesium-rich snack might help soothe things today.",
+    });
+  } else if (!isLate && daysToNextPeriod >= 1 && daysToNextPeriod <= 3) {
+    notifications.push({
+      id: "period-heads-up",
+      icon: "📅",
+      title: "Upcoming period",
+      message: `Friendly reminder: your cycle is predicted to start in ${daysToNextPeriod} day${
+        daysToNextPeriod === 1 ? "" : "s"
+      }. Time to prep!`,
+    });
+  }
+
+  // --- Fertile window / ovulation ---
+  if (rawPhase === "ovulation") {
+    notifications.push({
+      id: "ovulation-today",
+      icon: "🌸",
+      title: "Ovulation day",
+      message: "Today is your predicted ovulation day — peak fertility.",
+    });
+  } else if (rawPhase === "fertile") {
+    const justStarted = day === fertileWindowStartDay;
+    notifications.push({
+      id: "fertile-window",
+      icon: justStarted ? "✨" : "🌱",
+      title: justStarted ? "Fertile window has started" : "Fertile window",
+      message: justStarted
+        ? "Heads up! You're entering your fertile window starting today."
+        : `You're in your fertile window. Ovulation expected in ${daysToOvulation} day${
+            daysToOvulation === 1 ? "" : "s"
+          }.`,
+    });
+  }
+
+  // --- Cycle-syncing / wellness tips per phase ---
+  if (rawPhase === "follicular") {
+    notifications.push({
+      id: "follicular-tip",
+      icon: "⚡",
+      title: "Follicular phase",
+      message: "Your energy might be peaking — great time for a new workout routine.",
+    });
+  }
+
+  if (groupedPhase === "luteal" && daysToNextPeriod > 5) {
+    notifications.push({
+      id: "luteal-tip",
+      icon: "🍫",
+      title: "Pre-menstrual phase",
+      message: "Be extra gentle with yourself, and maybe reach for some dark chocolate.",
+    });
+  }
+
+  if (groupedPhase === "luteal" && daysToNextPeriod >= 2 && daysToNextPeriod <= 5) {
+    notifications.push({
+      id: "pms-warning",
+      icon: "💢",
+      title: "PMS symptoms may start soon",
+      message: "Your period is approaching — watch for mood changes, bloating, or fatigue.",
+    });
+  }
+
+  // --- Daily logging nudge ---
+  // Note: this always shows, regardless of whether the user already logged
+  // today, since this function has no access to symptom-log data. Wiring
+  // that up properly would mean fetching /api/symptoms from the navbar too.
+  notifications.push({
+    id: "log-symptoms-reminder",
+    icon: "📝",
+    title: "How are you feeling?",
+    message: "Tap to log today's symptoms and flow.",
+    actionLabel: "Log symptoms",
+    actionPath: "/symptoms",
+  });
+
+  return notifications;
+}

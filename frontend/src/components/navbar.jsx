@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import logo from "../assets/logo.png";
 import { Bell, Calendar, BarChart3, Menu, X, Home as HomeIcon } from "lucide-react";
+import { getCycleNotifications } from "../utils/cycleMath";
 
-// Brand tokens — kept consistent with the dashboard/cycledetails palette
 const BRAND = {
   ink: "#241220",
   text: "#4A3E47",
@@ -18,6 +18,8 @@ const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem("token"));
   const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [dismissedIds, setDismissedIds] = useState(() => new Set());
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -27,28 +29,78 @@ const Navbar = () => {
     setShowNotifications(false);
   }, [location]);
 
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setNotifications([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadNotifications = async () => {
+      try {
+        const userId = localStorage.getItem("userId");
+        const token = localStorage.getItem("token");
+        if (!userId || !token) return;
+
+        const res = await fetch(`http://localhost:5000/api/users/${userId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+
+        const data = await res.json();
+        const info = data?.cycleInfo;
+        if (!info?.lastPeriod || cancelled) return;
+
+        const cycle = {
+          lastPeriodStart: new Date(info.lastPeriod),
+          periodStarts: (info.history || []).map((h) => new Date(h.date)),
+          cycleLength: Number(info.cycleLength),
+          periodLength: Number(info.periodLength),
+        };
+
+        const todaysNotifications = getCycleNotifications(cycle, new Date());
+        if (!cancelled) setNotifications(todaysNotifications);
+      } catch (err) {
+        console.error("Failed to load notifications:", err);
+      }
+    };
+
+    loadNotifications();
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn]);
+
+  const visibleNotifications = notifications.filter((n) => !dismissedIds.has(n.id));
+
+  const dismissNotification = (id) => {
+    setDismissedIds((prev) => new Set(prev).add(id));
+  };
+
+  const handleNotificationAction = (n) => {
+    if (n.actionPath) {
+      setShowNotifications(false);
+      setIsOpen(false);
+      navigate(n.actionPath);
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("userId");
     setIsLoggedIn(false);
+    setNotifications([]);
     navigate("/");
   };
 
   const goToStats = () => {
-    // Cycle Stats reads lastPeriodDate/cycleLength/periodLength from route
-    // state when available. Coming from the navbar we don't have that data on
-    // hand, so the Cycle Stats page should fall back to fetching
-    // /api/users/:id itself when state is empty.
     navigate("/cycle-stats");
   };
 
   const isActive = (path) => location.pathname === path;
   const isHomeActive = () => location.pathname === "/" || location.pathname === "/dashboard";
 
-  // Icon button that expands in place — the active page's icon stays
-  // permanently expanded with its label showing (dark fill), and any
-  // inactive icon expands the same way on hover. Padding/width classes are
-  // never duplicated on the same element, which is what caused the flinch.
   const NavItem = ({ to, onClick, icon, label, active }) => {
     const className = `group flex items-center h-10 rounded-full pl-2.5 transition-all duration-300 ease-out ${
       active
@@ -83,10 +135,59 @@ const Navbar = () => {
     );
   };
 
+  const NotificationsPanel = () => (
+    <>
+      <p className="font-semibold mb-2" style={{ color: BRAND.ink }}>
+        Notifications
+      </p>
+      {visibleNotifications.length === 0 ? (
+        <p className="text-xs" style={{ color: BRAND.muted }}>
+          No new notifications
+        </p>
+      ) : (
+        <div className="space-y-2 max-h-72 overflow-y-auto">
+          {visibleNotifications.map((n) => (
+            <div
+              key={n.id}
+              className="flex items-start gap-2 rounded-xl p-2.5"
+              style={{ background: BRAND.pinkSoft }}
+            >
+              <span className="text-base leading-none mt-0.5">{n.icon}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold" style={{ color: BRAND.ink }}>
+                  {n.title}
+                </p>
+                <p className="text-[11px] mt-0.5" style={{ color: BRAND.muted }}>
+                  {n.message}
+                </p>
+                {n.actionLabel && n.actionPath && (
+                  <button
+                    onClick={() => handleNotificationAction(n)}
+                    className="text-[11px] font-semibold mt-1.5 underline"
+                    style={{ color: BRAND.pink }}
+                  >
+                    {n.actionLabel} →
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={() => dismissNotification(n.id)}
+                aria-label="Dismiss notification"
+                className="shrink-0 text-[11px] font-medium px-1.5 py-0.5 rounded-full hover:bg-white/60 transition-colors"
+                style={{ color: BRAND.muted }}
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+
   return (
     <nav className="fixed w-full z-50 bg-white shadow-[0_1px_0_rgba(36,18,32,0.06)]">
       <div className="max-w-7xl mx-auto pl-2 pr-6 h-20 flex justify-between items-center">
-        {/* Logo */}
         <Link to="/" className="flex items-center gap-3 shrink-0">
           <img
             src={logo}
@@ -104,7 +205,6 @@ const Navbar = () => {
           </div>
         </Link>
 
-        {/* Desktop nav */}
         <div className="hidden md:flex items-center gap-2">
           <NavItem to="/" icon={<HomeIcon size={18} strokeWidth={2} />} label="Home" active={isHomeActive()} />
 
@@ -135,10 +235,12 @@ const Navbar = () => {
                 >
                   <span className="relative flex items-center justify-center shrink-0 h-5 w-5">
                     <Bell size={18} strokeWidth={2} />
-                    <span
-                      className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full ring-2 ring-white"
-                      style={{ background: BRAND.pink }}
-                    />
+                    {visibleNotifications.length > 0 && (
+                      <span
+                        className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full ring-2 ring-white"
+                        style={{ background: BRAND.pink }}
+                      />
+                    )}
                   </span>
                   <span
                     className={`overflow-hidden whitespace-nowrap text-sm font-medium transition-all duration-300 ease-out ${
@@ -153,15 +255,10 @@ const Navbar = () => {
 
                 {showNotifications && (
                   <div
-                    className="absolute right-0 mt-2.5 w-72 bg-white rounded-2xl shadow-[0_8px_24px_rgba(36,18,32,0.12)] border p-4 text-sm z-50"
+                    className="absolute right-0 mt-2.5 w-80 bg-white rounded-2xl shadow-[0_8px_24px_rgba(36,18,32,0.12)] border p-4 text-sm z-50"
                     style={{ borderColor: BRAND.border }}
                   >
-                    <p className="font-semibold mb-1" style={{ color: BRAND.ink }}>
-                      Notifications
-                    </p>
-                    <p className="text-xs" style={{ color: BRAND.muted }}>
-                      No new notifications
-                    </p>
+                    <NotificationsPanel />
                   </div>
                 )}
               </div>
@@ -208,7 +305,6 @@ const Navbar = () => {
           )}
         </div>
 
-        {/* Mobile toggle */}
         <button
           className={`md:hidden flex items-center justify-center h-10 w-10 rounded-full transition-colors ${
             isOpen ? "bg-gradient-to-r from-[#E23670] to-[#C82D60] text-white shadow-[0_2px_10px_rgba(226,54,112,0.35)]" : "text-[#4A3E47] hover:bg-[#F6EEF1]"
@@ -220,7 +316,6 @@ const Navbar = () => {
         </button>
       </div>
 
-      {/* Mobile menu */}
       {isOpen && (
         <div className="md:hidden bg-white border-t px-4 py-4 space-y-1" style={{ borderColor: BRAND.border }}>
           <Link
@@ -261,22 +356,25 @@ const Navbar = () => {
 
               <button
                 onClick={() => setShowNotifications((v) => !v)}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl ${
+                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl relative ${
                   showNotifications ? "bg-gradient-to-r from-[#E23670] to-[#C82D60] text-white shadow-[0_2px_10px_rgba(226,54,112,0.35)]" : "text-[#4A3E47] hover:bg-[#F6EEF1]"
                 }`}
               >
-                <Bell size={18} strokeWidth={2} />
+                <span className="relative flex items-center justify-center">
+                  <Bell size={18} strokeWidth={2} />
+                  {visibleNotifications.length > 0 && (
+                    <span
+                      className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full ring-2 ring-white"
+                      style={{ background: showNotifications ? "#fff" : BRAND.pink }}
+                    />
+                  )}
+                </span>
                 Notifications
               </button>
 
               {showNotifications && (
                 <div className="mx-4 mt-1 rounded-xl border p-4 text-sm" style={{ borderColor: BRAND.border }}>
-                  <p className="font-semibold mb-1" style={{ color: BRAND.ink }}>
-                    Notifications
-                  </p>
-                  <p className="text-xs" style={{ color: BRAND.muted }}>
-                    No new notifications
-                  </p>
+                  <NotificationsPanel />
                 </div>
               )}
             </>

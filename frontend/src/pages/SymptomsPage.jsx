@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 
 const SYMPTOM_GROUPS = [
   {
@@ -108,7 +109,14 @@ const INTENSITY_EMOJI = ["🙂", "🙂", "😐", "😐", "😕", "😕", "😣",
 
 const UNDO_WINDOW_MS = 5000;
 
-export default function SymptomsPage({ token }) {
+// Always read the freshest token directly from localStorage instead of
+// trusting a prop that a parent route might have captured once and never updated.
+function getAuthToken() {
+  return localStorage.getItem("token");
+}
+
+export default function SymptomsPage() {
+  const navigate = useNavigate();
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [selected, setSelected] = useState([]);
   const [intensity, setIntensity] = useState(5);
@@ -120,19 +128,29 @@ export default function SymptomsPage({ token }) {
   const [editingId, setEditingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
 
-  
-  const [pendingDelete, setPendingDelete] = useState(null); 
+  const [pendingDelete, setPendingDelete] = useState(null);
   const pendingDeleteRef = useRef(null);
 
-  
   const [customTagsByGroup, setCustomTagsByGroup] = useState({});
   const [openCustomGroup, setOpenCustomGroup] = useState(null);
   const [customInput, setCustomInput] = useState("");
   const customInputRef = useRef(null);
 
+  // Centralized handler: if the server ever says the token is bad/expired,
+  // clear storage and send the user back to login instead of leaving them
+  // stuck staring at a banner.
+  const handleAuthFailure = (msg) => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("userId");
+    setError(msg || "Your session has expired. Please log in again.");
+    setTimeout(() => navigate("/login", { replace: true }), 1200);
+  };
+
   useEffect(() => {
+    const token = getAuthToken();
     if (!token) {
       setError("You're not signed in. Please log in again.");
+      setTimeout(() => navigate("/login", { replace: true }), 1000);
       return;
     }
 
@@ -140,13 +158,18 @@ export default function SymptomsPage({ token }) {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(async (r) => {
+        if (r.status === 401) {
+          const body = await r.json().catch(() => ({}));
+          handleAuthFailure(body?.error);
+          throw new Error(body?.error || "Session expired");
+        }
         if (!r.ok) {
           let msg = `Failed to load (status ${r.status})`;
           try {
             const body = await r.json();
             if (body?.error) msg = body.error;
           } catch {
-            
+            // ignore parse errors
           }
           throw new Error(msg);
         }
@@ -155,11 +178,13 @@ export default function SymptomsPage({ token }) {
       .then(setLogs)
       .catch((err) => {
         console.error("Failed to load symptom logs:", err);
-        setError(err.message || "Could not load your logs. Please refresh.");
+        if (!err.message?.toLowerCase().includes("session expired")) {
+          setError(err.message || "Could not load your logs. Please refresh.");
+        }
       });
-  }, [token]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  
   useEffect(() => {
     return () => {
       if (pendingDeleteRef.current?.timeoutId) {
@@ -168,7 +193,6 @@ export default function SymptomsPage({ token }) {
     };
   }, []);
 
-  
   const frequentTags = useMemo(() => {
     const counts = new Map();
     for (const log of logs) {
@@ -182,13 +206,11 @@ export default function SymptomsPage({ token }) {
       .map(([name]) => name);
   }, [logs]);
 
-  
   const mostRecentPriorLog = useMemo(() => {
     const sorted = [...logs].sort((a, b) => new Date(b.date) - new Date(a.date));
     return sorted.find((l) => l.date?.slice(0, 10) < date) || sorted[0] || null;
   }, [logs, date]);
 
-  
   const trendPoints = useMemo(() => {
     const byDate = new Map(logs.map((l) => [l.date?.slice(0, 10), l.intensity]));
     const days = [];
@@ -265,6 +287,13 @@ export default function SymptomsPage({ token }) {
 
   const save = async () => {
     if (!selected.length && !notes.trim()) return;
+
+    const token = getAuthToken();
+    if (!token) {
+      handleAuthFailure("You're not signed in. Please log in again.");
+      return;
+    }
+
     setSaving(true);
     setError("");
 
@@ -282,6 +311,12 @@ export default function SymptomsPage({ token }) {
         body: JSON.stringify({ date, tags: selected, notes, intensity }),
       });
 
+      if (res.status === 401) {
+        const body = await res.json().catch(() => ({}));
+        handleAuthFailure(body?.error);
+        return;
+      }
+
       if (!res.ok) {
         const { error: msg } = await res.json();
         throw new Error(msg || (isEditing ? "Update failed" : "Save failed"));
@@ -297,7 +332,6 @@ export default function SymptomsPage({ token }) {
     }
   };
 
-  
   const deleteLog = (log) => {
     if (pendingDeleteRef.current?.timeoutId) {
       clearTimeout(pendingDeleteRef.current.timeoutId);
@@ -314,12 +348,24 @@ export default function SymptomsPage({ token }) {
   };
 
   const commitDelete = async (id) => {
+    const token = getAuthToken();
+    if (!token) {
+      handleAuthFailure("You're not signed in. Please log in again.");
+      return;
+    }
+
     setDeletingId(id);
     try {
       const res = await fetch(`/api/symptoms/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
+
+      if (res.status === 401) {
+        const body = await res.json().catch(() => ({}));
+        handleAuthFailure(body?.error);
+        return;
+      }
 
       if (!res.ok) {
         const { error: msg } = await res.json();
@@ -347,7 +393,6 @@ export default function SymptomsPage({ token }) {
 
   const isEditing = editingId !== null;
 
-  
   const chartW = 320;
   const chartH = 70;
   const known = trendPoints.filter((p) => p.intensity != null);
@@ -360,13 +405,12 @@ export default function SymptomsPage({ token }) {
     })
     .join(" ");
 
-  
   const card = { background: "#fff", borderRadius: 12, padding: "14px 16px", marginBottom: "1rem" };
 
   return (
     <div style={{ width: "100%", minHeight: "100vh", background: "#FFF6F9" }}>
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "2.5rem 2rem" }}>
-        <h1 style={{ margin: "0 0 6px",lineHeight: "1.2",fontSize: "1.5rem" }}>How are you feeling? 💗</h1>
+        <h1 style={{ margin: "0 0 6px", lineHeight: "1.2", fontSize: "1.5rem" }}>How are you feeling? 💗</h1>
         <p style={{ fontSize: 13, color: "#9A7383", margin: "0 0 1.5rem" }}>Track today's symptoms and mood</p>
 
         {error && (
@@ -388,8 +432,6 @@ export default function SymptomsPage({ token }) {
         )}
 
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 340px", gap: 24, alignItems: "start" }}>
-
-          {/* Main column: date, symptom groups, intensity, notes, save */}
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem", gap: 10, flexWrap: "wrap" }}>
               <div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 14 }}>
@@ -573,7 +615,6 @@ export default function SymptomsPage({ token }) {
             )}
           </div>
 
-          
           <div>
             {frequentTags.length > 0 && (
               <div style={card}>
@@ -597,21 +638,6 @@ export default function SymptomsPage({ token }) {
                     </button>
                   ))}
                 </div>
-              </div>
-            )}
-
-            {known.length > 1 && (
-              <div style={card}>
-                <p style={{ fontWeight: 500, margin: "0 0 8px", fontSize: 13, color: "#9A7383" }}>📈 Intensity — last 14 days</p>
-                <svg viewBox={`0 0 ${chartW} ${chartH}`} width="100%" height={chartH}>
-                  <polyline points={linePoints} fill="none" stroke="#D4537E" strokeWidth="2" />
-                  {known.map((p) => {
-                    const i = trendPoints.indexOf(p);
-                    const x = (i / (trendPoints.length - 1)) * chartW;
-                    const y = chartH - (p.intensity / 10) * chartH;
-                    return <circle key={p.date} cx={x} cy={y} r={3} fill="#D4537E" />;
-                  })}
-                </svg>
               </div>
             )}
 
@@ -664,7 +690,6 @@ export default function SymptomsPage({ token }) {
               ))}
             </div>
           </div>
-
         </div>
       </div>
     </div>

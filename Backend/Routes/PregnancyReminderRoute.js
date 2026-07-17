@@ -1,8 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const PregnancyReminder = require("../models/Pregnancyreminder");
-
-const verifyT
+const verifyToken = require("../middleware/verifyToken");
 router.get("/", verifyToken, async (req, res) => {
   try {
     const reminders = await PregnancyReminder.find({ user: req.user.id }).sort({ date: 1 });
