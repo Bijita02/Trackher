@@ -99,14 +99,6 @@ export function fromInputDate(value) {
   return new Date(y, m - 1, d);
 }
 
-// ---------------------------------------------------------------------------
-// Notifications: derives period / fertile-window / PMS / wellness alerts
-// purely from cycle data. No backend storage needed — recalculated fresh
-// each time based on today's date vs. the user's cycle.
-//
-// Each notification may optionally include actionLabel/actionPath, which
-// the UI renders as a tappable button that navigates somewhere useful.
-// ---------------------------------------------------------------------------
 export function getCycleNotifications(cycle, today = new Date()) {
   const notifications = [];
   if (!cycle || !cycle.lastPeriodStart || !cycle.cycleLength || !cycle.periodLength) {
@@ -126,10 +118,6 @@ export function getCycleNotifications(cycle, today = new Date()) {
   const fertileWindowStartDay = ovulationDay - 4;
 
   // --- Late period detection ---
-  // dayInCycle() always wraps into a new predicted cycle once cycleLength
-  // days pass, which silently assumes the period arrived on schedule. To
-  // detect genuine lateness we instead compare today directly against the
-  // last *logged* period start, ignoring that wraparound.
   const isLate = daysSinceAnchor > cycle.cycleLength + 2 && daysSinceAnchor < cycle.cycleLength * 2;
 
   if (isLate) {
@@ -141,7 +129,7 @@ export function getCycleNotifications(cycle, today = new Date()) {
     });
   }
 
-  // --- Menstrual phase: on-period status + self-care tip ---
+  // --- Menstrual phase: on-period status ---
   if (rawPhase === "menstrual") {
     notifications.push({
       id: "on-period",
@@ -151,13 +139,6 @@ export function getCycleNotifications(cycle, today = new Date()) {
         day === 1
           ? "Today marks day 1 of your period."
           : `You're on day ${day} of your period.`,
-    });
-
-    notifications.push({
-      id: "period-self-care",
-      icon: "🫗",
-      title: "Cramps acting up?",
-      message: "A hot water bottle or a magnesium-rich snack might help soothe things today.",
     });
   } else if (!isLate && daysToNextPeriod >= 1 && daysToNextPeriod <= 3) {
     notifications.push({
@@ -220,10 +201,6 @@ export function getCycleNotifications(cycle, today = new Date()) {
     });
   }
 
-  // --- Daily logging nudge ---
-  // Note: this always shows, regardless of whether the user already logged
-  // today, since this function has no access to symptom-log data. Wiring
-  // that up properly would mean fetching /api/symptoms from the navbar too.
   notifications.push({
     id: "log-symptoms-reminder",
     icon: "📝",
@@ -232,6 +209,84 @@ export function getCycleNotifications(cycle, today = new Date()) {
     actionLabel: "Log symptoms",
     actionPath: "/symptoms",
   });
+
+  return notifications;
+}
+
+// --- Symptom-driven notifications ---
+// These are generated from the symptoms you log most often across all your
+// entries, so the bell surfaces patterns worth paying attention to instead
+// of generic tips.
+const SYMPTOM_TIPS = {
+  Migraines: { icon: "🧊", title: "You often log Migraines", message: "Try resting in a dark, quiet room when they hit." },
+  Headache: { icon: "🧊", title: "You often log Headaches", message: "Staying hydrated and resting your eyes may help." },
+  Cramps: { icon: "🔥", title: "You often log Cramps", message: "A heating pad or gentle stretching tends to ease this." },
+  "Abdominal cramps": { icon: "🔥", title: "You often log Cramps", message: "A heating pad or gentle stretching tends to ease this." },
+  Nausea: { icon: "🍵", title: "You often log Nausea", message: "Ginger tea or small, bland snacks can help settle your stomach." },
+  Anxious: { icon: "🌬️", title: "You often log feeling Anxious", message: "A few minutes of slow, deep breathing may help you reset." },
+  Stress: { icon: "🌬️", title: "You often log Stress", message: "Short walks or deep breathing could help you unwind." },
+  Insomnia: { icon: "🌙", title: "You often log Insomnia", message: "A screen-free wind-down routine before bed may help." },
+  Fatigue: { icon: "🔋", title: "You often log Fatigue", message: "Listen to your body — extra rest may be worth prioritizing." },
+  "Low energy": { icon: "🔋", title: "You often log Low energy", message: "Be gentle with yourself and prioritize rest where you can." },
+  "Mood swings": { icon: "🎢", title: "You often log Mood swings", message: "It's okay to feel this way — be kind to yourself." },
+  "Low mood": { icon: "💗", title: "You often log Low mood", message: "Consider reaching out to someone you trust, or take time for yourself." },
+  "Heavy flow": { icon: "🩸", title: "You often log Heavy flow", message: "Make sure to stay comfortable and change protection regularly." },
+  Bloating: { icon: "🎈", title: "You often log Bloating", message: "Peppermint tea or a short walk may help ease bloating." },
+  Backaches: { icon: "🦴", title: "You often log Backaches", message: "Gentle stretching or a warm compress may help." },
+  "Lower back pain": { icon: "🦴", title: "You often log Lower back pain", message: "Gentle stretching or a warm compress may help." },
+  Diarrhea: { icon: "🧻", title: "You often log Diarrhea", message: "Stay hydrated and stick to bland, easy-to-digest foods." },
+  Constipation: { icon: "💩", title: "You often log Constipation", message: "Fiber, water, and gentle movement can help." },
+  Irritable: { icon: "😤", title: "You often log feeling Irritable", message: "A short break or change of scene might help you reset." },
+  "Tender breasts": { icon: "🎗️", title: "You often log Tender breasts", message: "A supportive bra may help ease the discomfort." },
+};
+
+/**
+ * Computes which symptom tags appear most often across all logs and
+ * returns notifications for the top ones. Mirrors the "frequent tags"
+ * logic already used in SymptomsPage, so the bell stays consistent with
+ * what the person sees there.
+ *
+ * @param {Array} allLogs - full array of symptom logs from the API
+ * @param {number} topN - how many top symptoms to surface (default 3)
+ * @param {number} minCount - minimum times a tag must appear to qualify (default 2)
+ */
+export function getSymptomBasedNotifications(allLogs, topN = 3, minCount = 2) {
+  const notifications = [];
+  if (!Array.isArray(allLogs) || allLogs.length === 0) {
+    return notifications;
+  }
+
+  const counts = new Map();
+  for (const log of allLogs) {
+    for (const tag of log.tags || []) {
+      counts.set(tag, (counts.get(tag) || 0) + 1);
+    }
+  }
+
+  const topTags = [...counts.entries()]
+    .filter(([, count]) => count >= minCount)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, topN);
+
+  for (const [tag, count] of topTags) {
+    const tip = SYMPTOM_TIPS[tag];
+    if (tip) {
+      notifications.push({
+        id: `symptom-freq-${tag.toLowerCase().replace(/\s+/g, "-")}`,
+        icon: tip.icon,
+        title: tip.title,
+        message: `${tip.message} (logged ${count} times)`,
+      });
+    } else {
+      // Fallback for tags without a specific tip (e.g. custom symptoms)
+      notifications.push({
+        id: `symptom-freq-${tag.toLowerCase().replace(/\s+/g, "-")}`,
+        icon: "📝",
+        title: `You often log "${tag}"`,
+        message: `This has come up ${count} times in your logs.`,
+      });
+    }
+  }
 
   return notifications;
 }

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import logo from "../assets/logo.png";
 import { Bell, Calendar, BarChart3, Menu, X, Home as HomeIcon } from "lucide-react";
-import { getCycleNotifications } from "../utils/cycleMath";
+import { getCycleNotifications, getSymptomBasedNotifications } from "../utils/cycleMath";
 
 const BRAND = {
   ink: "#241220",
@@ -43,32 +43,57 @@ const Navbar = () => {
         const token = localStorage.getItem("token");
         if (!userId || !token) return;
 
-        const res = await fetch(`http://localhost:5000/api/users/${userId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) return;
+        const [userRes, symptomsRes] = await Promise.all([
+          fetch(`http://localhost:5000/api/users/${userId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch("http://localhost:5000/api/symptoms", {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
 
-        const data = await res.json();
-        const info = data?.cycleInfo;
-        if (!info?.lastPeriod || cancelled) return;
+        // Cycle-phase notifications
+        let cycleNotifications = [];
+        if (userRes.ok) {
+          const data = await userRes.json();
+          const info = data?.cycleInfo;
+          if (info?.lastPeriod) {
+            const cycle = {
+              lastPeriodStart: new Date(info.lastPeriod),
+              periodStarts: (info.history || []).map((h) => new Date(h.date)),
+              cycleLength: Number(info.cycleLength),
+              periodLength: Number(info.periodLength),
+            };
+            cycleNotifications = getCycleNotifications(cycle, new Date());
+          }
+        }
 
-        const cycle = {
-          lastPeriodStart: new Date(info.lastPeriod),
-          periodStarts: (info.history || []).map((h) => new Date(h.date)),
-          cycleLength: Number(info.cycleLength),
-          periodLength: Number(info.periodLength),
-        };
+        // Symptom-driven notifications, based on your most frequently
+        // logged symptoms across all entries (not just today's).
+        let symptomNotifications = [];
+        if (symptomsRes.ok) {
+          const allLogs = await symptomsRes.json();
+          symptomNotifications = getSymptomBasedNotifications(allLogs);
+        }
 
-        const todaysNotifications = getCycleNotifications(cycle, new Date());
-        if (!cancelled) setNotifications(todaysNotifications);
+        if (!cancelled) {
+          setNotifications([...symptomNotifications, ...cycleNotifications]);
+        }
       } catch (err) {
         console.error("Failed to load notifications:", err);
       }
     };
 
     loadNotifications();
+
+    // Real-time refresh: SymptomsPage fires this after a save/delete so the
+    // bell updates immediately without needing a reload or re-login.
+    const handleSymptomsUpdated = () => loadNotifications();
+    window.addEventListener("symptoms:updated", handleSymptomsUpdated);
+
     return () => {
       cancelled = true;
+      window.removeEventListener("symptoms:updated", handleSymptomsUpdated);
     };
   }, [isLoggedIn]);
 

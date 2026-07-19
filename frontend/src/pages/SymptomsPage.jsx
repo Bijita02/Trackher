@@ -285,7 +285,7 @@ export default function SymptomsPage() {
     setNotes(mostRecentPriorLog.notes || "");
   };
 
-  const save = async () => {
+ const save = async () => {
     if (!selected.length && !notes.trim()) return;
 
     const token = getAuthToken();
@@ -324,6 +324,7 @@ export default function SymptomsPage() {
 
       const updatedLogs = await res.json();
       setLogs(updatedLogs);
+      window.dispatchEvent(new Event("symptoms:updated")); // real-time notification refresh
       resetForm();
     } catch (err) {
       setError(err.message || "Something went wrong. Please try again.");
@@ -374,6 +375,7 @@ export default function SymptomsPage() {
 
       const updatedLogs = await res.json();
       setLogs(updatedLogs);
+      window.dispatchEvent(new Event("symptoms:updated")); // real-time notification refresh
     } catch (err) {
       setError(err.message || "Could not delete. Please try again.");
     } finally {
@@ -389,6 +391,7 @@ export default function SymptomsPage() {
     setLogs((prev) => [pendingDelete.log, ...prev]);
     pendingDeleteRef.current = null;
     setPendingDelete(null);
+    window.dispatchEvent(new Event("symptoms:updated"));
   };
 
   const isEditing = editingId !== null;
