@@ -8,12 +8,14 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const validator = require("validator");
 const User = require("./models/User");
-const symptomsRoute = require("./routes/SymptomsRoute");
-const AiChatRoute = require("./routes/AiChatRoute");
-const statusRoutes = require('./Routes/statusRoutes');
+const symptomsRoute = require("./Routes/SymptomsRoute");
+const AiChatRoute = require("./Routes/AiChatRoute");
+const statusRoutes = require("./Routes/statusRoutes");
+const weightRoute = require("./Routes/WeightRoute");
+const cravingsRoute = require("./Routes/Cravingsroute");
+const pregnancyReminderRoute = require("./Routes/Pregnancyreminderroute");
 
 const app = express();
-
 app.use(cors());
 app.use(express.json());
 
@@ -21,7 +23,6 @@ mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB Connected"))
   .catch(err => console.log(err));
 
-// Helper function to verify incoming authentication tokens
 function verifyToken(req) {
   const authHeader = req.headers.authorization;
 
@@ -42,7 +43,7 @@ function verifyToken(req) {
   try {
     return jwt.verify(token, process.env.JWT_SECRET);
   } catch (jwtErr) {
-    // Log the REAL reason so it shows up in your server terminal
+
     console.error("JWT verify failed:", jwtErr.name, "-", jwtErr.message);
 
     const err = new Error(
@@ -58,12 +59,37 @@ function verifyToken(req) {
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const TOTAL_PREGNANCY_DAYS = 280;
 
+// Computes an end date from a start date + period length when no
+// explicit end date is provided
+function computeEndDate(startDate, periodLength) {
+  const end = new Date(startDate);
+  end.setDate(end.getDate() + (periodLength || 5) - 1);
+  return end;
+}
+
+// After editing/deleting a history entry, recompute cycleInfo.lastPeriod
+// (and periodLength) from whatever the most recent remaining entry is,
+// so the "current" snapshot fields stay consistent with history
+async function syncLatestPeriod(userId) {
+  const user = await User.findById(userId);
+  if (!user) return null;
+
+  const sorted = [...user.cycleInfo.history].sort(
+    (a, b) => new Date(b.date) - new Date(a.date)
+  );
+  const latest = sorted[0];
+
+  user.cycleInfo.lastPeriod = latest ? latest.date : null;
+  if (latest?.periodLength) user.cycleInfo.periodLength = latest.periodLength;
+
+  await user.save();
+  return user;
+}
+
 app.get("/", (req, res) => {
   res.send("Backend server is running");
 });
 
-// AUTHENTICATION: Register Route
-// AUTHENTICATION: Register Route
 app.post("/api/register", async (req, res) => {
   try {
     const { name, email, password, birthdate } = req.body;
@@ -83,7 +109,7 @@ app.post("/api/register", async (req, res) => {
     const token = jwt.sign(
       { id: userIdString, _id: userIdString },
       process.env.JWT_SECRET,
-      { expiresIn: "1h" }
+      { expiresIn: "7d" }
     );
 
     res.status(201).json({
@@ -110,7 +136,7 @@ app.post("/api/login", async (req, res) => {
     const token = jwt.sign(
       { id: userIdString, _id: userIdString },
       process.env.JWT_SECRET,
-      { expiresIn: "1h" }
+      { expiresIn: "7d" }
     );
 
     res.json({ message: "Login successful", token, userId: userIdString });
@@ -119,10 +145,39 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
+// POST /api/reset-password
+// Directly updates a user's password given their email — no token or
+// email verification step. Simple by design for now.
+app.post("/api/reset-password", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !validator.isEmail(email)) {
+      return res.status(400).json({ error: "A valid email is required." });
+    }
+    if (!password || password.length < 8) {
+      return res.status(400).json({ error: "Password must be at least 8 characters." });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ error: "No account found with that email." });
+    }
+
+    user.password = await bcrypt.hash(password, 10);
+    await user.save();
+
+    res.json({ message: "Password updated successfully." });
+  } catch (err) {
+    console.error("Reset password error:", err);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
+  }
+});
+
 app.post("/api/user-cycle", async (req, res) => {
   try {
     const decoded = verifyToken(req);
-    const { lastPeriod, cycleLength, periodLength } = req.body;
+    const { lastPeriod, periodEnd, cycleLength, periodLength } = req.body;
 
     const targetUserId = decoded.id || decoded._id;
     if (!targetUserId) {
@@ -132,19 +187,33 @@ app.post("/api/user-cycle", async (req, res) => {
     const parsedCycleLength = cycleLength ? Number(cycleLength) : undefined;
     const parsedPeriodLength = periodLength ? Number(periodLength) : undefined;
 
+    const startDate = new Date(lastPeriod);
+    if (Number.isNaN(startDate.getTime())) {
+      return res.status(400).json({ error: "Invalid lastPeriod date" });
+    }
+
+    const endDate = periodEnd
+      ? new Date(periodEnd)
+      : computeEndDate(startDate, parsedPeriodLength);
+
+    if (Number.isNaN(endDate.getTime())) {
+      return res.status(400).json({ error: "Invalid periodEnd date" });
+    }
+
     const updatedUser = await User.findByIdAndUpdate(
       targetUserId,
       {
         $set: {
-          "cycleInfo.lastPeriod": new Date(lastPeriod),
+          "cycleInfo.lastPeriod": startDate,
           "cycleInfo.cycleLength": parsedCycleLength,
           "cycleInfo.periodLength": parsedPeriodLength,
         },
         $push: {
           "cycleInfo.history": {
-            date: new Date(lastPeriod),
-            cycleLength: parsedCycleLength,   // FIXED: was missing entirely
-            periodLength: parsedPeriodLength, // FIXED: was missing entirely
+            date: startDate,
+            endDate,
+            cycleLength: parsedCycleLength,
+            periodLength: parsedPeriodLength,
           },
         },
       },
@@ -166,7 +235,84 @@ app.post("/api/user-cycle", async (req, res) => {
   }
 });
 
-// PREGNANCY: Update Setup Route
+// EDIT an existing logged period's start/end date
+app.put("/api/user-cycle/:entryId", async (req, res) => {
+  try {
+    const decoded = verifyToken(req);
+    const { lastPeriod, periodEnd, periodLength } = req.body;
+    const targetUserId = decoded.id || decoded._id;
+
+    if (!lastPeriod) {
+      return res.status(400).json({ error: "lastPeriod is required" });
+    }
+
+    const startDate = new Date(lastPeriod);
+    if (Number.isNaN(startDate.getTime())) {
+      return res.status(400).json({ error: "Invalid lastPeriod date" });
+    }
+
+    const parsedPeriodLength = periodLength ? Number(periodLength) : undefined;
+    const endDate = periodEnd
+      ? new Date(periodEnd)
+      : computeEndDate(startDate, parsedPeriodLength);
+
+    if (Number.isNaN(endDate.getTime())) {
+      return res.status(400).json({ error: "Invalid periodEnd date" });
+    }
+    if (endDate < startDate) {
+      return res.status(400).json({ error: "End date can't be before start date" });
+    }
+
+    const updated = await User.findOneAndUpdate(
+      { _id: targetUserId, "cycleInfo.history._id": req.params.entryId },
+      {
+        $set: {
+          "cycleInfo.history.$.date": startDate,
+          "cycleInfo.history.$.endDate": endDate,
+          ...(parsedPeriodLength && { "cycleInfo.history.$.periodLength": parsedPeriodLength }),
+        },
+      },
+      { new: true }
+    );
+
+    if (!updated) {
+      return res.status(404).json({ error: "Period entry not found" });
+    }
+
+    const synced = await syncLatestPeriod(targetUserId);
+    res.json(synced);
+  } catch (err) {
+    console.error("Cycle entry update error:", err);
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+// DELETE a logged period entirely
+app.delete("/api/user-cycle/:entryId", async (req, res) => {
+  try {
+    const decoded = verifyToken(req);
+    const targetUserId = decoded.id || decoded._id;
+
+    const exists = await User.findOne({
+      _id: targetUserId,
+      "cycleInfo.history._id": req.params.entryId,
+    });
+    if (!exists) {
+      return res.status(404).json({ error: "Period entry not found" });
+    }
+
+    await User.findByIdAndUpdate(targetUserId, {
+      $pull: { "cycleInfo.history": { _id: req.params.entryId } },
+    });
+
+    const synced = await syncLatestPeriod(targetUserId);
+    res.json(synced);
+  } catch (err) {
+    console.error("Cycle entry delete error:", err);
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
 app.post("/api/pregnancy-info", async (req, res) => {
   try {
     const decoded = verifyToken(req);
@@ -204,7 +350,6 @@ app.post("/api/pregnancy-info", async (req, res) => {
   }
 });
 
-// PREGNANCY: Removal Reset Route
 app.delete("/api/pregnancy-info", async (req, res) => {
   try {
     const decoded = verifyToken(req);
@@ -222,7 +367,6 @@ app.delete("/api/pregnancy-info", async (req, res) => {
   }
 });
 
-// CORE USER: Fetch Profile Context Details Route
 app.get("/api/users/:id", async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
@@ -233,10 +377,12 @@ app.get("/api/users/:id", async (req, res) => {
   }
 });
 
-// MOUNTING REGISTERED SYSTEM ROUTERS
-app.use('/api/status', statusRoutes); 
+app.use('/api/status', statusRoutes);
 app.use("/api/symptoms", symptomsRoute);
 app.use("/api/ai", AiChatRoute);
+app.use("/api/weight", weightRoute);
+app.use("/api/cravings", cravingsRoute);
+app.use("/api/pregnancy-reminders", pregnancyReminderRoute);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

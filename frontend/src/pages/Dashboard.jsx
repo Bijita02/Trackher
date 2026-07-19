@@ -46,9 +46,11 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isVibeOpen, setIsVibeOpen] = useState(false);
+
   const [weekOffset, setWeekOffset] = useState(0);
 
   const [showLogModal, setShowLogModal] = useState(false);
+  const [logDate, setLogDate] = useState(null);
   const [logSaving, setLogSaving] = useState(false);
   const [logError, setLogError] = useState(null);
 
@@ -133,7 +135,8 @@ function Dashboard() {
     });
   };
 
-  async function confirmLogPeriodToday() {
+  async function confirmLogPeriod() {
+    if (!logDate) return;
     setLogSaving(true);
     setLogError(null);
 
@@ -146,7 +149,7 @@ function Dashboard() {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
-          lastPeriod: toInputDate(today),
+          lastPeriod: toInputDate(logDate),
           cycleLength: cycleLength || 28,
           periodLength: periodLength || 5,
         }),
@@ -184,6 +187,8 @@ function Dashboard() {
     : null;
 
   const cycleDay = CYCLE ? dayInCycle(today, CYCLE) : null;
+  const rawPhase = CYCLE ? phaseForDay(cycleDay, CYCLE) : null;
+  const currentPhase = CYCLE ? groupPhase(rawPhase) : null;
   const rawPhase = CYCLE ? phaseForDay(cycleDay, CYCLE) : null;
   const currentPhase = CYCLE ? groupPhase(rawPhase) : null;
 
@@ -242,31 +247,26 @@ function Dashboard() {
               </span>
             )}
             <h1 className="fr-display text-3xl leading-tight" style={{ color: BRAND.ink }}>
-              Good morning{user?.name ? `, ${user.name.split(" ")[0]}` : ""}
+              Welcome Back{user?.name ? `, ${user.name.split(" ")[0]}` : ""}
             </h1>
             <p className="text-sm mt-1" style={{ color: BRAND.muted }}>Here's your cycle overview</p>
           </div>
 
-          {CYCLE && (
-            <button
-              onClick={() => {
-                setLogError(null);
-                setShowLogModal(true);
-              }}
-              className="p-2.5 rounded-full bg-white hover:shadow-sm transition-all"
-              style={{ border: `1px solid ${BRAND.border}` }}
-              title="Log period"
-              aria-label="Log period"
-            >
-              <Calendar size={18} style={{ color: BRAND.muted }} />
-            </button>
-          )}
         </div>
 
         {user?.cycleInfo?.lastPeriod ? (
           <>
-            {/* Week strip */}
             <div className="rounded-2xl p-5 mb-6 bg-white" style={{ border: `1px solid ${BRAND.border}` }}>
+              <button
+                onClick={() => navigate("/calendar")}
+                className="flex items-center gap-2 mb-4 group"
+              >
+                <Calendar size={16} style={{ color: BRAND.pink }} />
+                <span className="text-sm font-semibold group-hover:underline" style={{ color: BRAND.ink }}>
+                  Calendar
+                </span>
+              </button>
+
               <div className="flex items-center justify-between mb-4">
                 <button
                   onClick={() => setWeekOffset((w) => w - 1)}
@@ -290,6 +290,7 @@ function Dashboard() {
               <div className="grid grid-cols-7 gap-2">
                 {weekDays.map((d, i) => {
                   const isToday = d.toDateString() === today.toDateString();
+                  const isFuture = d > today;
                   const dNum = dayInCycle(d, CYCLE);
                   const phase = groupPhase(phaseForDay(dNum, CYCLE));
                   const color = PHASE_DISPLAY[phase]?.color || BRAND.pink;
@@ -305,24 +306,33 @@ function Dashboard() {
                       ) : (
                         <span className="text-[9px]">&nbsp;</span>
                       )}
-                      <div
-                        className="w-full aspect-square rounded-lg flex items-center justify-center text-sm font-semibold transition-all fr-display"
+                      <button
+                        type="button"
+                        disabled={isFuture}
+                        onClick={() => {
+                          if (isFuture) return;
+                          setLogError(null);
+                          setLogDate(d);
+                          setShowLogModal(true);
+                        }}
+                        className="w-full aspect-square rounded-lg flex items-center justify-center text-sm font-semibold transition-all duration-150 active:scale-90 hover:scale-105 fr-display"
                         style={{
                           background: isToday ? color : `${color}1F`,
                           color: isToday ? "#fff" : BRAND.ink,
                           outline: isToday ? "none" : `1px solid ${color}55`,
                           outlineOffset: "-1px",
+                          cursor: isFuture ? "default" : "pointer",
+                          opacity: isFuture ? 0.5 : 1,
                         }}
                       >
                         {d.getDate()}
-                      </div>
+                      </button>
                     </div>
                   );
                 })}
               </div>
             </div>
 
-            {/* Phase ring + countdown */}
             <div
               className="rounded-2xl p-6 mb-8 bg-white flex flex-col items-center"
               style={{ border: `1px solid ${BRAND.border}` }}
@@ -330,12 +340,11 @@ function Dashboard() {
               <PhaseRing cycle={CYCLE} today={today} phase={rawPhase} />
               <h2 className="fr-display text-3xl mt-4 mb-1 text-center" style={{ color: BRAND.ink }}>{headline}</h2>
               <p className="text-sm" style={{ color: BRAND.muted }}>{subtitle}</p>
-              <p className="text-xs mt-3 inline-block px-3 py-1 rounded-full" style={{ background: BRAND.pinkSoft, color: BRAND.pink }}>
+              <p className="text-xs mt-3 inline-block px-4 py-1.5 rounded-full" style={{ background: BRAND.pinkSoft, color: BRAND.pink }}>
                 Next period in {untilNextPeriod} day{untilNextPeriod === 1 ? "" : "s"} · {nextPeriodDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
               </p>
             </div>
 
-            {/* Quick actions */}
             <div className="flex justify-center gap-10 mb-8">
               <QuickAction
                 icon={<Droplet size={20} color="#fff" />}
@@ -343,6 +352,7 @@ function Dashboard() {
                 label="Log period"
                 onClick={() => {
                   setLogError(null);
+                  setLogDate(today);
                   setShowLogModal(true);
                 }}
               />
@@ -405,13 +415,13 @@ function Dashboard() {
         )}
       </div>
 
-      {showLogModal && (
+      {showLogModal && logDate && (
         <LogPeriodModal
-          today={today}
+          date={logDate}
           saving={logSaving}
           error={logError}
           onClose={() => setShowLogModal(false)}
-          onConfirm={confirmLogPeriodToday}
+          onConfirm={confirmLogPeriod}
         />
       )}
 
@@ -464,7 +474,7 @@ function QuickAction({ icon, bg, label, onClick }) {
   return (
     <button onClick={onClick} className="flex flex-col items-center gap-2 group">
       <div
-        className="w-14 h-14 rounded-full flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform"
+        className="w-14 h-14 rounded-full flex items-center justify-center shadow-sm transition-transform duration-150 group-hover:scale-105 group-active:scale-90"
         style={{ background: bg }}
       >
         {icon}
@@ -528,8 +538,9 @@ function PhaseRing({ cycle, today, phase }) {
   );
 }
 
-function LogPeriodModal({ today, saving, error, onClose, onConfirm }) {
-  const dateLabel = today.toLocaleDateString("en-US", {
+function LogPeriodModal({ date, saving, error, onClose, onConfirm }) {
+  const isToday = date.toDateString() === new Date().toDateString();
+  const dateLabel = date.toLocaleDateString("en-US", {
     weekday: "long",
     month: "long",
     day: "numeric",
@@ -562,7 +573,9 @@ function LogPeriodModal({ today, saving, error, onClose, onConfirm }) {
 
         <div className="rounded-xl p-4 mb-4 flex items-center gap-3" style={{ background: BRAND.pinkSoft }}>
           <Droplet size={18} style={{ color: BRAND.pink }} />
-          <p className="text-sm" style={{ color: BRAND.ink }}>Mark today as your period start</p>
+          <p className="text-sm" style={{ color: BRAND.ink }}>
+            {isToday ? "Mark today as your period start" : `Mark ${dateLabel} as your period start`}
+          </p>
         </div>
 
         {error && <p className="text-xs mb-3" style={{ color: BRAND.pink }}>{error}</p>}
