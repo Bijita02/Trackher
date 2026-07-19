@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import logo from "../assets/logo.png";
-import { Bell, Calendar, BarChart3, Menu, X, Home as HomeIcon } from "lucide-react";
+import { Bell, Menu, X, Home as HomeIcon } from "lucide-react";
 import { getCycleNotifications, getSymptomBasedNotifications } from "../utils/cycleMath";
 
 const BRAND = {
@@ -52,7 +52,6 @@ const Navbar = () => {
           }),
         ]);
 
-        // Cycle-phase notifications
         let cycleNotifications = [];
         if (userRes.ok) {
           const data = await userRes.json();
@@ -68,8 +67,6 @@ const Navbar = () => {
           }
         }
 
-        // Symptom-driven notifications, based on your most frequently
-        // logged symptoms across all entries (not just today's).
         let symptomNotifications = [];
         if (symptomsRes.ok) {
           const allLogs = await symptomsRes.json();
@@ -86,8 +83,6 @@ const Navbar = () => {
 
     loadNotifications();
 
-    // Real-time refresh: SymptomsPage fires this after a save/delete so the
-    // bell updates immediately without needing a reload or re-login.
     const handleSymptomsUpdated = () => loadNotifications();
     window.addEventListener("symptoms:updated", handleSymptomsUpdated);
 
@@ -119,11 +114,6 @@ const Navbar = () => {
     navigate("/");
   };
 
-  const goToStats = () => {
-    navigate("/cycle-stats");
-  };
-
-  const isActive = (path) => location.pathname === path;
   const isHomeActive = () => location.pathname === "/" || location.pathname === "/dashboard";
 
   const NavItem = ({ to, onClick, icon, label, active }) => {
@@ -234,60 +224,45 @@ const Navbar = () => {
           <NavItem to="/" icon={<HomeIcon size={18} strokeWidth={2} />} label="Home" active={isHomeActive()} />
 
           {isLoggedIn && (
-            <>
-              <NavItem
-                to="/calendar"
-                icon={<Calendar size={18} strokeWidth={2} />}
-                label="Calendar"
-                active={isActive("/calendar")}
-              />
-              <NavItem
-                onClick={goToStats}
-                icon={<BarChart3 size={18} strokeWidth={2} />}
-                label="Stats"
-                active={isActive("/cycle-stats")}
-              />
-
-              <div className="relative group">
-                <button
-                  onClick={() => setShowNotifications((v) => !v)}
-                  aria-label="Notifications"
-                  className={`group flex items-center h-10 rounded-full pl-2.5 transition-all duration-300 ease-out ${
+            <div className="relative group">
+              <button
+                onClick={() => setShowNotifications((v) => !v)}
+                aria-label="Notifications"
+                className={`group flex items-center h-10 rounded-full pl-2.5 transition-all duration-300 ease-out ${
+                  showNotifications
+                    ? "bg-gradient-to-r from-[#E23670] to-[#C82D60] text-white shadow-[0_2px_10px_rgba(226,54,112,0.35)] pr-4"
+                    : "pr-2.5 hover:pr-4 text-[#4A3E47] hover:bg-[#F6EEF1]"
+                }`}
+              >
+                <span className="relative flex items-center justify-center shrink-0 h-5 w-5">
+                  <Bell size={18} strokeWidth={2} />
+                  {visibleNotifications.length > 0 && (
+                    <span
+                      className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full ring-2 ring-white"
+                      style={{ background: BRAND.pink }}
+                    />
+                  )}
+                </span>
+                <span
+                  className={`overflow-hidden whitespace-nowrap text-sm font-medium transition-all duration-300 ease-out ${
                     showNotifications
-                      ? "bg-gradient-to-r from-[#E23670] to-[#C82D60] text-white shadow-[0_2px_10px_rgba(226,54,112,0.35)] pr-4"
-                      : "pr-2.5 hover:pr-4 text-[#4A3E47] hover:bg-[#F6EEF1]"
+                      ? "max-w-[100px] opacity-100 ml-2"
+                      : "max-w-0 opacity-0 ml-0 group-hover:max-w-[100px] group-hover:opacity-100 group-hover:ml-2"
                   }`}
                 >
-                  <span className="relative flex items-center justify-center shrink-0 h-5 w-5">
-                    <Bell size={18} strokeWidth={2} />
-                    {visibleNotifications.length > 0 && (
-                      <span
-                        className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full ring-2 ring-white"
-                        style={{ background: BRAND.pink }}
-                      />
-                    )}
-                  </span>
-                  <span
-                    className={`overflow-hidden whitespace-nowrap text-sm font-medium transition-all duration-300 ease-out ${
-                      showNotifications
-                        ? "max-w-[100px] opacity-100 ml-2"
-                        : "max-w-0 opacity-0 ml-0 group-hover:max-w-[100px] group-hover:opacity-100 group-hover:ml-2"
-                    }`}
-                  >
-                    Alerts
-                  </span>
-                </button>
+                  Alerts
+                </span>
+              </button>
 
-                {showNotifications && (
-                  <div
-                    className="absolute right-0 mt-2.5 w-80 bg-white rounded-2xl shadow-[0_8px_24px_rgba(36,18,32,0.12)] border p-4 text-sm z-50"
-                    style={{ borderColor: BRAND.border }}
-                  >
-                    <NotificationsPanel />
-                  </div>
-                )}
-              </div>
-            </>
+              {showNotifications && (
+                <div
+                  className="absolute right-0 mt-2.5 w-80 bg-white rounded-2xl shadow-[0_8px_24px_rgba(36,18,32,0.12)] border p-4 text-sm z-50"
+                  style={{ borderColor: BRAND.border }}
+                >
+                  <NotificationsPanel />
+                </div>
+              )}
+            </div>
           )}
 
           <div className="w-px h-6 mx-3" style={{ background: BRAND.border }} />
@@ -355,30 +330,6 @@ const Navbar = () => {
 
           {isLoggedIn && (
             <>
-              <Link
-                to="/calendar"
-                className={`flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl ${
-                  isActive("/calendar") ? "bg-gradient-to-r from-[#E23670] to-[#C82D60] text-white shadow-[0_2px_10px_rgba(226,54,112,0.35)]" : "text-[#4A3E47] hover:bg-[#F6EEF1]"
-                }`}
-                onClick={() => setIsOpen(false)}
-              >
-                <Calendar size={18} strokeWidth={2} />
-                Calendar
-              </Link>
-
-              <button
-                onClick={() => {
-                  goToStats();
-                  setIsOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl ${
-                  isActive("/cycle-stats") ? "bg-gradient-to-r from-[#E23670] to-[#C82D60] text-white shadow-[0_2px_10px_rgba(226,54,112,0.35)]" : "text-[#4A3E47] hover:bg-[#F6EEF1]"
-                }`}
-              >
-                <BarChart3 size={18} strokeWidth={2} />
-                Cycle Stats
-              </button>
-
               <button
                 onClick={() => setShowNotifications((v) => !v)}
                 className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl relative ${
