@@ -43,7 +43,7 @@ function verifyToken(req) {
   try {
     return jwt.verify(token, process.env.JWT_SECRET);
   } catch (jwtErr) {
-    
+
     console.error("JWT verify failed:", jwtErr.name, "-", jwtErr.message);
 
     const err = new Error(
@@ -118,6 +118,35 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
+// POST /api/reset-password
+// Directly updates a user's password given their email — no token or
+// email verification step. Simple by design for now.
+app.post("/api/reset-password", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !validator.isEmail(email)) {
+      return res.status(400).json({ error: "A valid email is required." });
+    }
+    if (!password || password.length < 8) {
+      return res.status(400).json({ error: "Password must be at least 8 characters." });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ error: "No account found with that email." });
+    }
+
+    user.password = await bcrypt.hash(password, 10);
+    await user.save();
+
+    res.json({ message: "Password updated successfully." });
+  } catch (err) {
+    console.error("Reset password error:", err);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
+  }
+});
+
 app.post("/api/user-cycle", async (req, res) => {
   try {
     const decoded = verifyToken(req);
@@ -142,8 +171,8 @@ app.post("/api/user-cycle", async (req, res) => {
         $push: {
           "cycleInfo.history": {
             date: new Date(lastPeriod),
-            cycleLength: parsedCycleLength,  
-            periodLength: parsedPeriodLength, 
+            cycleLength: parsedCycleLength,
+            periodLength: parsedPeriodLength,
           },
         },
       },
@@ -229,7 +258,7 @@ app.get("/api/users/:id", async (req, res) => {
   }
 });
 
-app.use('/api/status', statusRoutes); 
+app.use('/api/status', statusRoutes);
 app.use("/api/symptoms", symptomsRoute);
 app.use("/api/ai", AiChatRoute);
 app.use("/api/weight", weightRoute);

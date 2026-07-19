@@ -16,7 +16,7 @@ import Calendar from "./pages/calendar";
 import Weighttracker from "./pages/Weighttracker";
 import Cravings from "./pages/Cravings";
 import PregnancyCalendarPage from "./pages/PregnancyCalendarPage";
-
+import ForgotPassword from "./pages/ForgotPassword";
 function App() {
   return (
     <Router>
@@ -38,6 +38,7 @@ function App() {
           <Route path="/pregnancy-calendar" element={<PregnancyCalendarPage />} />
           <Route path="/weight-tracker" element={<Weighttracker />} />
           <Route path="/cravings" element={<Cravings />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
         </Routes>
       </div>
     </Router>
