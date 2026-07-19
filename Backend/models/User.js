@@ -47,6 +47,8 @@ const userSchema = new mongoose.Schema({
   created_at: { type: Date, default: Date.now },
   cycleInfo: { type: cycleInfoSchema, default: () => ({ history: [], symptoms: [] }) },
   pregnancyInfo: { type: pregnancyInfoSchema, default: null },
+  resetPasswordTokenHash: { type: String, default: null },
+  resetPasswordExpires: { type: Date, default: null },
 });
 
 module.exports = mongoose.model("User", userSchema);

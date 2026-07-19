@@ -51,6 +51,8 @@ const [loading, setLoading] = useState(false);
     } catch (error) {
       console.error("Login error:", error);
       setMessage(" Could not connect to the server.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -112,9 +114,9 @@ const [loading, setLoading] = useState(false);
             </div>
 
             <div className="text-right">
-              <a href="#" className="text-sm text-pink-500 hover:underline">
+              <Link to="/forgot-password" className="text-sm text-pink-500 hover:underline">
                 Forgot password?
-              </a>
+              </Link>
             </div>
 
             

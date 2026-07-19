@@ -7,6 +7,7 @@ const cors = require("cors");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const validator = require("validator");
+const crypto = require("crypto");
 const User = require("./models/User");
 const symptomsRoute = require("./Routes/SymptomsRoute");
 const AiChatRoute = require("./Routes/AiChatRoute");
@@ -58,6 +59,7 @@ function verifyToken(req) {
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const TOTAL_PREGNANCY_DAYS = 280;
+const RESET_TOKEN_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 app.get("/", (req, res) => {
   res.send("Backend server is running");
@@ -115,6 +117,36 @@ app.post("/api/login", async (req, res) => {
     res.json({ message: "Login successful", token, userId: userIdString });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+
+// POST /api/reset-password
+// Directly updates a user's password given their email — no token or
+// email verification step. Simple by design for now.
+app.post("/api/reset-password", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !validator.isEmail(email)) {
+      return res.status(400).json({ error: "A valid email is required." });
+    }
+    if (!password || password.length < 8) {
+      return res.status(400).json({ error: "Password must be at least 8 characters." });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ error: "No account found with that email." });
+    }
+
+    user.password = await bcrypt.hash(password, 10);
+    await user.save();
+
+    res.json({ message: "Password updated successfully." });
+  } catch (err) {
+    console.error("Reset password error:", err);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 });
 
