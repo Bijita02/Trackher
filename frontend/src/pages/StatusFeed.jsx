@@ -5,27 +5,89 @@ function StatusFeed() {
   const navigate = useNavigate();
   const [statuses, setStatuses] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Inline states for comment forms per status ID
+  const [commentInputs, setCommentInputs] = useState({}); 
+
+  // Retrieve current configurations safely from local storage
+  const currentUserId = localStorage.getItem("userId");
+  const token = localStorage.getItem("token") || localStorage.getItem("Token");
 
   useEffect(() => {
-    const fetchStatuses = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        const res = await fetch("http://localhost:5000/api/status/feed", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setStatuses(data);
-        }
-      } catch (err) {
-        console.error("Error pulling friend vibes:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchStatuses();
   }, []);
+
+  const fetchStatuses = async () => {
+    try {
+      const res = await fetch("http://localhost:5000/api/status/feed", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setStatuses(data);
+      }
+    } catch (err) {
+      console.error("Error pulling friend vibes:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Like Toggle Handler
+  const handleLike = async (statusId) => {
+    try {
+      const res = await fetch(`http://localhost:5000/api/status/${statusId}/like`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ userId: currentUserId }),
+      });
+      
+      const data = await res.json();
+      if (res.ok) {
+        setStatuses((prev) =>
+          prev.map((item) => (item._id === statusId ? { ...item, likes: data.likes } : item))
+        );
+      } else {
+        console.error("Like backend rejected request:", data.error || res.statusText);
+      }
+    } catch (err) {
+      console.error("Error updating status like:", err);
+    }
+  };
+
+  // Comment Submission Handler
+  const handleCommentSubmit = async (e, statusId) => {
+    e.preventDefault();
+    const commentText = commentInputs[statusId]?.trim();
+    if (!commentText) return;
+
+    try {
+      const res = await fetch(`http://localhost:5000/api/status/${statusId}/comment`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ 
+          userId: currentUserId,
+          userName: localStorage.getItem("userName") || "Meejala",
+          text: commentText 
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setStatuses((prev) =>
+          prev.map((item) => (item._id === statusId ? { ...item, comments: data.comments } : item))
+        );
+        setCommentInputs((prev) => ({ ...prev, [statusId]: "" }));
+      }
+    } catch (err) {
+      console.error("Error updating status comment:", err);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#FAF7F5] pb-12">
@@ -60,51 +122,100 @@ function StatusFeed() {
           </div>
         ) : (
           <div className="space-y-4">
-            {statuses.map((item) => (
-              <div
-                key={item._id}
-                className="bg-white rounded-3xl p-6 border border-gray-50 shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden group"
-              >
-                <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-pink-200 to-rose-300 group-hover:scale-y-110 transition-transform" />
+            {statuses.map((item) => {
+              const hasLiked = item.likes?.includes(currentUserId);
 
-                <div className="flex items-start justify-between gap-4 pl-2">
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-sm text-gray-800 tracking-tight">
-                        {/* Replaces any old fallback bugs dynamically with the local storage name context if empty */}
-                        {!item.username || item.username === "user circle friend" 
-                          ? (localStorage.getItem("userName") || "Meejala") 
-                          : item.username
-                        }
-                      </h4>
-                      <span className="w-1 h-1 rounded-full bg-gray-300" />
-                      <span className="text-[10px] text-gray-400 font-medium">
-                        {item.createdAt ? new Date(item.createdAt).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        }) : "Just now"}
-                      </span>
+              return (
+                <div
+                  key={item._id}
+                  className="bg-white rounded-3xl p-6 border border-gray-50 shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden group"
+                >
+                  <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-pink-200 to-rose-300 group-hover:scale-y-110 transition-transform" />
+
+                  <div className="flex items-start justify-between gap-4 pl-2">
+                    <div className="space-y-2 flex-1">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-sm text-gray-800 tracking-tight">
+                          {!item.username || item.username === "user circle friend" 
+                            ? (localStorage.getItem("userName") || "Meejala") 
+                            : item.username
+                          }
+                        </h4>
+                        <span className="w-1 h-1 rounded-full bg-gray-300" />
+                        <span className="text-[10px] text-gray-400 font-medium">
+                          {item.createdAt ? new Date(item.createdAt).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          }) : "Just now"}
+                        </span>
+                      </div>
+
+                      {/* Fixed below to safely pull content/text directly from whatever key the backend provides */}
+                      <p className="text-gray-600 text-sm leading-relaxed font-normal bg-gray-50/60 px-4 py-2.5 rounded-2xl border border-gray-100/50 inline-block">
+                        {item.statusText || item.content || item.text || "Empty status"}
+                      </p>
+
+                      {/* Interaction Sub-section */}
+                      <div className="pt-2 space-y-3">
+                        <div className="flex items-center gap-4 text-xs">
+                          <button
+                            type="button"
+                            onClick={() => handleLike(item._id)}
+                            className="flex items-center gap-1 font-bold text-gray-400 hover:text-rose-500 transition-colors"
+                          >
+                            <span>{hasLiked ? "❤️" : "🤍"}</span>
+                            <span>{item.likes?.length || 0}</span>
+                          </button>
+                          <span className="text-gray-400 font-medium">
+                            💬 {item.comments?.length || 0} Replies
+                          </span>
+                        </div>
+
+                        {/* Existing Comments Display */}
+                        {item.comments && item.comments.length > 0 && (
+                          <div className="space-y-1.5 bg-gray-50/80 p-3 rounded-xl border border-gray-100/60 max-h-32 overflow-y-auto">
+                            {item.comments.map((comment, idx) => (
+                              <div key={comment._id || idx} className="text-[11px] text-gray-600">
+                                <span className="font-bold text-gray-700 mr-1.5">{comment.userName || "Friend"}:</span>
+                                <span>{comment.text}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Inline Reply Form */}
+                        <form onSubmit={(e) => handleCommentSubmit(e, item._id)} className="flex gap-2">
+                          <input
+                            type="text"
+                            placeholder="Write a reply..."
+                            value={commentInputs[item._id] || ""}
+                            onChange={(e) => setCommentInputs({ ...commentInputs, [item._id]: e.target.value })}
+                            className="flex-1 text-xs border border-gray-200/80 bg-white rounded-xl px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#C2597A]/40 text-gray-700"
+                          />
+                          <button
+                            type="submit"
+                            className="bg-[#C2597A] hover:bg-[#7A3349] text-white text-[11px] font-bold px-3 py-1.5 rounded-xl transition-colors"
+                          >
+                            Reply
+                          </button>
+                        </form>
+                      </div>
                     </div>
 
-                    <p className="text-gray-600 text-sm leading-relaxed font-normal bg-gray-50/60 px-4 py-2.5 rounded-2xl border border-gray-100/50 inline-block">
-                      {item.statusText}
-                    </p>
+                    {item.vibeBadge && (
+                      <div className="flex flex-col items-center bg-amber-50/60 border border-amber-100/70 rounded-2xl px-3 py-2 min-w-[64px] shadow-sm">
+                        <span className="text-lg leading-none mb-0.5">
+                          {item.vibeBadge.emoji}
+                        </span>
+                        <span className="text-[9px] font-bold text-amber-700 capitalize tracking-wide whitespace-nowrap">
+                          {item.vibeBadge.text}
+                        </span>
+                      </div>
+                    )}
                   </div>
-
-                  {/* Vibe Badge Flag matched perfectly to your vibeBadge.emoji and vibeBadge.text nested object keys */}
-                  {item.vibeBadge && (
-                    <div className="flex flex-col items-center bg-amber-50/60 border border-amber-100/70 rounded-2xl px-3 py-2 min-w-[64px] shadow-sm">
-                      <span className="text-lg leading-none mb-0.5">
-                        {item.vibeBadge.emoji}
-                      </span>
-                      <span className="text-[9px] font-bold text-amber-700 capitalize tracking-wide whitespace-nowrap">
-                        {item.vibeBadge.text}
-                      </span>
-                    </div>
-                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

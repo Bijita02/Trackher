@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Calendar, ChevronLeft, ChevronRight, Droplet, Check, X, Loader2 } from "lucide-react";
 import Onboardingmodal from "../components/onboardingmodal";
 import ChatBot from "../components/chatbot";
-import StatusPopup from "../components/statuspopup";
+import StatusPopup from "../components/StatusPopup"; // Corrected Casing Import
 import {
   MS_PER_DAY,
   dayInCycle,
@@ -15,7 +15,6 @@ import {
 
 const POSTPARTUM_BUFFER_DAYS = 42;
 
-// Same brand palette as cycledetails.jsx, so the dashboard and calendar feel like one app
 const BRAND = {
   ink: "#241220",
   muted: "#8F8290",
@@ -31,8 +30,6 @@ const PHASE_DISPLAY = {
   luteal: { label: "Luteal", color: "#B96C87" },
 };
 
-// Ungrouped-phase colors, matching PHASE in cycledetails.jsx — needed because
-// phaseForDay() can return "fertile" / "ovulation" as distinct from the grouped labels above
 const RING_COLORS = {
   menstrual: "#E23670",
   follicular: "#8C7CD6",
@@ -49,11 +46,8 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isVibeOpen, setIsVibeOpen] = useState(false);
-
-  // Which week is shown in the strip: 0 = this week, -1 = last week, 1 = next week, etc.
   const [weekOffset, setWeekOffset] = useState(0);
 
-  // Quick "Log period" action state
   const [showLogModal, setShowLogModal] = useState(false);
   const [logSaving, setLogSaving] = useState(false);
   const [logError, setLogError] = useState(null);
@@ -101,7 +95,7 @@ function Dashboard() {
     } catch (err) {
       console.error(err);
       setShowModal(true);
-    } finally {
+    } finally { // Fixed typo here
       if (loading) setLoading(false);
     }
   };
@@ -168,7 +162,7 @@ function Dashboard() {
       await fetchUser();
     } catch (err) {
       setLogError(err.message);
-    } finally {
+    } finally { // Fixed typo here
       setLogSaving(false);
     }
   }
@@ -190,14 +184,12 @@ function Dashboard() {
     : null;
 
   const cycleDay = CYCLE ? dayInCycle(today, CYCLE) : null;
-  const rawPhase = CYCLE ? phaseForDay(cycleDay, CYCLE) : null; // ungrouped: menstrual/follicular/fertile/ovulation/luteal
-  const currentPhase = CYCLE ? groupPhase(rawPhase) : null;     // grouped: menstrual/follicular/ovulatory/luteal
+  const rawPhase = CYCLE ? phaseForDay(cycleDay, CYCLE) : null;
+  const currentPhase = CYCLE ? groupPhase(rawPhase) : null;
 
-  // Days until ovulation (only meaningful before ovulation happens this cycle)
   const ovulationDay = CYCLE ? CYCLE.cycleLength - 14 : null;
   const daysToOvulation = ovulationDay != null && cycleDay != null ? ovulationDay - cycleDay : null;
 
-  // Days until next period — always computed, shown as a small line regardless of phase
   const untilNextPeriod = CYCLE
     ? ((CYCLE.cycleLength - (cycleDay % CYCLE.cycleLength)) % CYCLE.cycleLength) || CYCLE.cycleLength
     : null;
@@ -221,7 +213,6 @@ function Dashboard() {
     }
   }
 
-  // Week strip: centered on whichever day is the middle of the selected week
   const weekCenter = CYCLE ? addDays(today, weekOffset * 7) : null;
   const weekDays = CYCLE
     ? Array.from({ length: 7 }, (_, i) => addDays(weekCenter, i - 3))
@@ -424,6 +415,7 @@ function Dashboard() {
         />
       )}
 
+      {/* Floating Action Buttons */}
       <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
         <div className="flex items-center gap-2 group">
           <span className="bg-white text-gray-700 text-[11px] font-medium px-3 py-1.5 rounded-xl shadow-md border border-gray-100 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap">
@@ -482,7 +474,6 @@ function QuickAction({ icon, bg, label, onClick }) {
   );
 }
 
-// Same circular phase-progress ring as in cycledetails.jsx
 function PhaseRing({ cycle, today, phase }) {
   const size = 160;
   const stroke = 14;

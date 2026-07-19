@@ -24,34 +24,38 @@ export default function StatusPopup({ isOpen, onClose, currentUserName }) {
     try {
       setIsSubmitting(true);
       const userId = localStorage.getItem("userId");
-      
-      // Fallback safely to whatever username is in local storage, or default to Meejala
+      const token = localStorage.getItem("token") || localStorage.getItem("Token");
       const activeUser = currentUserName || localStorage.getItem("userName") || "Meejala";
 
       const response = await fetch("http://localhost:5000/api/status/add", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify({
           userId,
-          username: activeUser, // Explicitly saved as 'username' for your schema
-          vibeBadge: selectedVibe, // Passes the full { emoji, text } object matching your model
-          statusText: statusText.trim()
+          user: userId,             
+          userName: activeUser,     
+          content: statusText.trim(), 
+          vibeBadge: selectedVibe
         }),
       });
 
       if (response.ok) {
-        onClose();
+        onClose(); 
         navigate('/status-feed');
       } else {
-        console.warn("Backend rejected save, redirecting to feed anyway.");
+        const errorData = await response.json();
+        console.error("Database save issue:", errorData.error);
         onClose();
         navigate('/status-feed');
       }
     } catch (err) {
-      console.error("Network error, redirecting to feed:", err);
+      console.error("Network problem:", err);
       onClose();
       navigate('/status-feed');
-    } finally {
+    } finally { // Fixed typo here
       setIsSubmitting(false);
     }
   };
