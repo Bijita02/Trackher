@@ -11,9 +11,9 @@ const Login = () => {
     password: "",
   });
   const [message, setMessage] = useState("");
-  
-const [showPassword, setShowPassword] = useState(false);
-const [loading, setLoading] = useState(false);
+
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
     setFormData({
@@ -43,7 +43,7 @@ const [loading, setLoading] = useState(false);
         localStorage.setItem("userId", data.userId)
         setMessage("Success: " + data.message);
 
-    
+
          setTimeout(() => navigate("/dashboard") , 1000);
       } else {
         setMessage(" Error: " + data.error);
@@ -51,6 +51,8 @@ const [loading, setLoading] = useState(false);
     } catch (error) {
       console.error("Login error:", error);
       setMessage(" Could not connect to the server.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -59,7 +61,7 @@ const [loading, setLoading] = useState(false);
 
       <div className="w-full max-w-md">
 
-        
+
         <div className="flex justify-center mb-5">
           <span className="bg-pink-100 text-pink-600 text-xs font-semibold px-4 py-1.5 rounded-full">
             Welcome back to TrackHer
@@ -73,7 +75,7 @@ const [loading, setLoading] = useState(false);
           Pick up right where you left off.
         </p>
 
-        
+
         <div className="bg-white border border-gray-200 rounded-2xl p-8">
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -112,12 +114,12 @@ const [loading, setLoading] = useState(false);
             </div>
 
             <div className="text-right">
-              <a href="#" className="text-sm text-pink-500 hover:underline">
+              <Link to="/forgot-password" className="text-sm text-pink-500 hover:underline">
                 Forgot password?
-              </a>
+              </Link>
             </div>
 
-            
+
             <button
               type="submit"
               disabled={loading}
