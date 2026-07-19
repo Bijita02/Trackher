@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Droplet, Sparkles, Leaf, Moon, Pencil, Check, X, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Droplet, Sparkles, Leaf, Moon, Pencil, Check, X, Loader2, Trash2 } from "lucide-react";
 import {
   dayInCycle,
   stripTime,
@@ -18,24 +18,34 @@ const PHASE = {
   luteal: { label: "Luteal", color: "#B96C87", soft: "#F6E4EA", icon: Moon },
 };
 
+// Finds a logged history entry that a given date falls inside (start..end inclusive)
+function findLoggedEntry(date, history) {
+  const t = stripTime(date);
+  return (history || []).find((h) => {
+    const start = stripTime(new Date(h.date));
+    const end = h.endDate ? stripTime(new Date(h.endDate)) : start;
+    return t >= start && t <= end;
+  });
+}
+
 export default function Cycledetails({
   lastPeriodStart,
   cycleLength,
   periodLength,
-  history = [],           // NEW: real logged period dates, e.g. user.cycleInfo.history
+  history = [],           // real logged period dates, e.g. user.cycleInfo.history
   apiBaseUrl = "/api",
   authToken,
   onCycleUpdate,
-  showStats= true,
+  showStats = true,
 }) {
   const today = useMemo(() => new Date(), []);
   const [localLastPeriod, setLocalLastPeriod] = useState(null);
-  const [localHistory, setLocalHistory] = useState(null); // NEW: mirrors saved history immediately
+  const [localHistory, setLocalHistory] = useState(null); // mirrors saved history immediately
 
   const resolvedLastPeriod = localLastPeriod || lastPeriodStart || new Date(2026, 5, 28);
   const resolvedHistory = localHistory || history;
 
-  // NEW: every known real period-start date, so past months anchor to
+  // every known real period-start date, so past months anchor to
   // what actually happened instead of being extrapolated from the newest one
   const periodStarts = useMemo(() => {
     const dates = [resolvedLastPeriod, ...resolvedHistory.map((h) => new Date(h.date))];
@@ -55,11 +65,12 @@ export default function Cycledetails({
   const [editDate, setEditDate] = useState(() => toInputDate(today));
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
-  
+
   const [dayModalDate, setDayModalDate] = useState(null); // Date object or null
+  const [dayModalEntry, setDayModalEntry] = useState(null); // matching history entry, or null if this is a new period
   const [modalSaving, setModalSaving] = useState(false);
   const [modalError, setModalError] = useState(null);
-  
+
   const monthLabel = viewDate.toLocaleDateString("en-US", { month: "long", year: "numeric" });
   const todayCycleDay = dayInCycle(today, CYCLE);
   const todayPhase = phaseForDay(todayCycleDay, CYCLE);
@@ -68,7 +79,8 @@ export default function Cycledetails({
   const isOnPeriod = todayPhase === "menstrual";
 
   const grid = useMemo(() => buildMonthGrid(viewDate), [viewDate]);
-   async function persistPeriodDate(dateStr) {
+
+  async function persistPeriodDate(startStr, endStr) {
     const res = await fetch(`${apiBaseUrl}/user-cycle`, {
       method: "POST",
       headers: {
@@ -76,27 +88,69 @@ export default function Cycledetails({
         ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
       },
       body: JSON.stringify({
-        lastPeriod: dateStr,
+        lastPeriod: startStr,
+        periodEnd: endStr,
         cycleLength: CYCLE.cycleLength,
         periodLength: CYCLE.periodLength,
       }),
     });
- 
+
     const data = await res.json();
- 
+
     if (!res.ok) {
       throw new Error(data?.error || "Couldn't save your period date. Please try again.");
     }
- 
+
     const savedUser = data.user || data;
-    const newLastPeriod = fromInputDate(dateStr);
- 
+    const newLastPeriod = fromInputDate(startStr);
+
     setLocalLastPeriod(newLastPeriod);
-    setLocalHistory(savedUser?.cycleInfo?.history || [...resolvedHistory, { date: dateStr }]);
+    setLocalHistory(savedUser?.cycleInfo?.history || [...resolvedHistory, { date: startStr, endDate: endStr }]);
     onCycleUpdate?.(savedUser);
- 
+
     return savedUser;
   }
+
+  async function updateLoggedPeriod(entryId, startStr, endStr) {
+    const res = await fetch(`${apiBaseUrl}/user-cycle/${entryId}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+      },
+      body: JSON.stringify({ lastPeriod: startStr, periodEnd: endStr }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data?.error || "Couldn't update this period.");
+    }
+
+    setLocalLastPeriod(data?.cycleInfo?.lastPeriod ? new Date(data.cycleInfo.lastPeriod) : null);
+    setLocalHistory(data?.cycleInfo?.history || []);
+    onCycleUpdate?.(data);
+    return data;
+  }
+
+  async function deleteLoggedPeriod(entryId) {
+    const res = await fetch(`${apiBaseUrl}/user-cycle/${entryId}`, {
+      method: "DELETE",
+      headers: {
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+      },
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data?.error || "Couldn't remove this period.");
+    }
+
+    setLocalLastPeriod(data?.cycleInfo?.lastPeriod ? new Date(data.cycleInfo.lastPeriod) : null);
+    setLocalHistory(data?.cycleInfo?.history || []);
+    onCycleUpdate?.(data);
+    return data;
+  }
+
   async function handleSavePeriod() {
     if (!editDate) {
       setSaveError("Please pick a date.");
@@ -106,8 +160,9 @@ export default function Cycledetails({
     setSaving(true);
     setSaveError(null);
 
-  try {
-      await persistPeriodDate(editDate);
+    try {
+      const endStr = toInputDate(addDays(fromInputDate(editDate), (CYCLE.periodLength || 5) - 1));
+      await persistPeriodDate(editDate, endStr);
       setIsEditing(false);
     } catch (err) {
       setSaveError(err.message);
@@ -126,30 +181,66 @@ export default function Cycledetails({
     setIsEditing(false);
     setSaveError(null);
   }
-   async function handleLogPeriodFromModal() {
-    if (!dayModalDate) return;
+
+  // called from the day popup when logging a brand-new period
+  async function handleLogPeriodFromModal(startStr, endStr) {
     setModalSaving(true);
     setModalError(null);
- 
     try {
-      await persistPeriodDate(toInputDate(dayModalDate));
+      await persistPeriodDate(startStr, endStr);
       setDayModalDate(null);
+      setDayModalEntry(null);
     } catch (err) {
       setModalError(err.message);
     } finally {
       setModalSaving(false);
     }
-   }
-   function handleDayClick(date) {
+  }
+
+  // called from the day popup when editing an existing logged period
+  async function handleUpdatePeriodFromModal(entryId, startStr, endStr) {
+    setModalSaving(true);
+    setModalError(null);
+    try {
+      await updateLoggedPeriod(entryId, startStr, endStr);
+      setDayModalDate(null);
+      setDayModalEntry(null);
+    } catch (err) {
+      setModalError(err.message);
+    } finally {
+      setModalSaving(false);
+    }
+  }
+
+  // called from the day popup when deleting an existing logged period
+  async function handleDeletePeriodFromModal(entryId) {
+    setModalSaving(true);
+    setModalError(null);
+    try {
+      await deleteLoggedPeriod(entryId);
+      setDayModalDate(null);
+      setDayModalEntry(null);
+    } catch (err) {
+      setModalError(err.message);
+    } finally {
+      setModalSaving(false);
+    }
+  }
+
+  function handleDayClick(date) {
     if (date > today) return; // don't allow logging future dates
     setModalError(null);
+    const existing = findLoggedEntry(date, resolvedHistory);
+    setDayModalEntry(existing || null);
     setDayModalDate(date);
   }
- 
+
   function closeDayModal() {
     setDayModalDate(null);
+    setDayModalEntry(null);
     setModalError(null);
   }
+
   const calendarCard = (
     <div
       className={showStats ? "lg:col-span-2 rounded-2xl p-6" : "rounded-2xl p-6"}
@@ -172,17 +263,25 @@ export default function Cycledetails({
           <ChevronRight size={18} color="#8F8290" />
         </button>
       </div>
- 
+
       <div className="grid grid-cols-7 gap-1 mb-2">
         {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
           <div key={i} className="text-center text-xs font-medium py-1" style={{ color: "#B7A8B1" }}>{d}</div>
         ))}
       </div>
- 
+
       <div className="grid grid-cols-7 gap-1">
         {grid.map((cell, i) => {
           if (!cell.date) return <div key={i} />;
-          const phase = phaseForDay(dayInCycle(cell.date, CYCLE), CYCLE);
+
+          // NEW: check for a logged entry FIRST, and let it override the
+          // computed phase so edited/shortened/extended periods actually
+          // render pink for their real range instead of the global default
+          const loggedEntry = findLoggedEntry(cell.date, resolvedHistory);
+          const phase = loggedEntry
+            ? "menstrual"
+            : phaseForDay(dayInCycle(cell.date, CYCLE), CYCLE);
+
           const isToday = stripTime(cell.date) === stripTime(today);
           const isFuture = cell.date > today;
           const p = PHASE[phase];
@@ -196,7 +295,7 @@ export default function Cycledetails({
               style={{
                 background: p.soft,
                 color: "#241220",
-                outline: isToday ? `2px solid ${p.color}` : "none",
+                outline: isToday ? `2px solid ${p.color}` : loggedEntry ? `1.5px dashed ${p.color}` : "none",
                 outlineOffset: "-2px",
                 cursor: isFuture ? "default" : "pointer",
                 opacity: isFuture ? 0.5 : 1,
@@ -216,7 +315,7 @@ export default function Cycledetails({
           );
         })}
       </div>
- 
+
       <div className="flex flex-wrap gap-4 mt-5 pt-5" style={{ borderTop: "1px solid #FBE7EF" }}>
         {["menstrual", "follicular", "fertile", "luteal"].map((key) => (
           <div key={key} className="flex items-center gap-2 text-xs" style={{ color: "#8F8290" }}>
@@ -227,14 +326,14 @@ export default function Cycledetails({
       </div>
     </div>
   );
- 
+
   return (
     <div style={{ fontFamily: "'Inter', sans-serif" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap');
         .fr-display { font-family: 'Fraunces', serif; }
       `}</style>
- 
+
       <div className="mt-8">
         {showStats && (
           <div className="flex items-center justify-between mb-8">
@@ -254,11 +353,11 @@ export default function Cycledetails({
             </div>
           </div>
         )}
- 
+
         {showStats ? (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {calendarCard}
- 
+
             <div className="rounded-2xl p-6 flex flex-col items-center justify-center" style={{ background: "#fff", border: "1px solid #FDE3EC" }}>
               <div className="w-full flex justify-end mb-1">
                 {!isEditing && (
@@ -271,13 +370,13 @@ export default function Cycledetails({
                   </button>
                 )}
               </div>
- 
+
               <PhaseRing cycle={CYCLE} today={today} phase={todayPhase} />
               <p className="fr-display text-xl mt-4" style={{ color: PHASE[todayPhase].color }}>{PHASE[todayPhase].label}</p>
               <p className="text-sm text-center mt-1" style={{ color: "#8F8290" }}>
                 Cycle day {todayCycleDay} of {CYCLE.cycleLength}
               </p>
- 
+
               {isEditing && (
                 <div className="w-full mt-5 pt-5" style={{ borderTop: "1px solid #FBE7EF" }}>
                   <label className="block text-xs font-medium mb-1.5" style={{ color: "#8F8290" }}>
@@ -291,11 +390,11 @@ export default function Cycledetails({
                     className="w-full text-sm px-3 py-2 rounded-lg outline-none"
                     style={{ border: "1px solid #FDE3EC", color: "#241220" }}
                   />
- 
+
                   {saveError && (
                     <p className="text-xs mt-2" style={{ color: "#E23670" }}>{saveError}</p>
                   )}
- 
+
                   <div className="flex gap-2 mt-3">
                     <button
                       onClick={handleSavePeriod}
@@ -323,24 +422,29 @@ export default function Cycledetails({
           calendarCard
         )}
       </div>
- 
+
       {/* popup shown when a calendar day is clicked */}
       {dayModalDate && (
         <DayPopup
           date={dayModalDate}
+          entry={dayModalEntry}
           cycle={CYCLE}
           saving={modalSaving}
           error={modalError}
           onClose={closeDayModal}
           onLogPeriod={handleLogPeriodFromModal}
+          onUpdatePeriod={handleUpdatePeriodFromModal}
+          onDeletePeriod={handleDeletePeriodFromModal}
         />
       )}
     </div>
   );
 }
- 
-// popup that appears when a day in the calendar grid is clicked
-function DayPopup({ date, cycle, saving, error, onClose, onLogPeriod }) {
+
+// popup that appears when a day in the calendar grid is clicked.
+// If `entry` is set, the clicked day is inside an already-logged period,
+// so this becomes an edit/delete form instead of a "start new period" prompt.
+function DayPopup({ date, entry, cycle, saving, error, onClose, onLogPeriod, onUpdatePeriod, onDeletePeriod }) {
   const cycleDay = dayInCycle(date, cycle);
   const phase = phaseForDay(cycleDay, cycle);
   const p = PHASE[phase];
@@ -349,7 +453,19 @@ function DayPopup({ date, cycle, saving, error, onClose, onLogPeriod }) {
     month: "long",
     day: "numeric",
   });
- 
+
+  const defaultStart = entry ? new Date(entry.date) : date;
+  const defaultEnd = entry?.endDate
+    ? new Date(entry.endDate)
+    : addDays(date, (cycle.periodLength || 5) - 1);
+
+  const [startVal, setStartVal] = useState(toInputDate(defaultStart));
+  const [endVal, setEndVal] = useState(toInputDate(defaultEnd));
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+  const dateError =
+    endVal && startVal && endVal < startVal ? "End date can't be before start date." : null;
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center px-4"
@@ -376,52 +492,120 @@ function DayPopup({ date, cycle, saving, error, onClose, onLogPeriod }) {
             <X size={16} color="#8F8290" />
           </button>
         </div>
- 
+
         <div
           className="rounded-xl p-4 mb-4 flex items-center gap-3"
           style={{ background: p.soft }}
         >
           <Droplet size={18} color={p.color} />
           <p className="text-sm" style={{ color: "#241220" }}>
-            Track your period starting on this day
+            {entry ? "Edit this logged period" : "Track your period starting on this day"}
           </p>
         </div>
- 
-        {error && (
-          <p className="text-xs mb-3" style={{ color: "#E23670" }}>{error}</p>
+
+        <label className="block text-xs font-medium mb-1.5" style={{ color: "#8F8290" }}>
+          Start date
+        </label>
+        <input
+          type="date"
+          value={startVal}
+          max={toInputDate(new Date())}
+          onChange={(e) => setStartVal(e.target.value)}
+          className="w-full text-sm px-3 py-2 rounded-lg outline-none mb-3"
+          style={{ border: "1px solid #FDE3EC", color: "#241220" }}
+        />
+
+        <label className="block text-xs font-medium mb-1.5" style={{ color: "#8F8290" }}>
+          End date
+        </label>
+        <input
+          type="date"
+          value={endVal}
+          min={startVal}
+          onChange={(e) => setEndVal(e.target.value)}
+          className="w-full text-sm px-3 py-2 rounded-lg outline-none mb-4"
+          style={{ border: "1px solid #FDE3EC", color: "#241220" }}
+        />
+
+        {(dateError || error) && (
+          <p className="text-xs mb-3" style={{ color: "#E23670" }}>{dateError || error}</p>
         )}
- 
-        <div className="flex gap-2">
-          <button
-            onClick={onLogPeriod}
-            disabled={saving}
-            className="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium py-2.5 rounded-lg transition disabled:opacity-60"
-            style={{ background: "#E23670", color: "#fff" }}
-          >
-            {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-            {saving ? "Saving…" : "Mark as period start"}
-          </button>
-          <button
-            onClick={onClose}
-            disabled={saving}
-            className="flex items-center justify-center gap-1.5 text-sm font-medium px-4 py-2.5 rounded-lg transition disabled:opacity-60"
-            style={{ background: "#FCE1EA", color: "#8F8290" }}
-          >
-            Cancel
-          </button>
-        </div>
+
+        {!confirmingDelete ? (
+          <div className="flex gap-2">
+            <button
+              onClick={() =>
+                entry
+                  ? onUpdatePeriod(entry._id, startVal, endVal)
+                  : onLogPeriod(startVal, endVal)
+              }
+              disabled={saving || !!dateError}
+              className="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium py-2.5 rounded-lg transition disabled:opacity-60"
+              style={{ background: "#E23670", color: "#fff" }}
+            >
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+              {saving ? "Saving…" : entry ? "Save changes" : "Mark as period"}
+            </button>
+
+            {entry && (
+              <button
+                onClick={() => setConfirmingDelete(true)}
+                disabled={saving}
+                className="flex items-center justify-center gap-1.5 text-sm font-medium px-3 py-2.5 rounded-lg transition disabled:opacity-60"
+                style={{ background: "#FCE1EA", color: "#E23670" }}
+                aria-label="Delete this period"
+              >
+                <Trash2 size={14} />
+              </button>
+            )}
+
+            <button
+              onClick={onClose}
+              disabled={saving}
+              className="flex items-center justify-center gap-1.5 text-sm font-medium px-4 py-2.5 rounded-lg transition disabled:opacity-60"
+              style={{ background: "#F5F0F1", color: "#8F8290" }}
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <div>
+            <p className="text-sm mb-3" style={{ color: "#241220" }}>
+              Remove this logged period entirely? This can't be undone.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => onDeletePeriod(entry._id)}
+                disabled={saving}
+                className="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium py-2.5 rounded-lg transition disabled:opacity-60"
+                style={{ background: "#E23670", color: "#fff" }}
+              >
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                {saving ? "Removing…" : "Yes, remove it"}
+              </button>
+              <button
+                onClick={() => setConfirmingDelete(false)}
+                disabled={saving}
+                className="flex items-center justify-center gap-1.5 text-sm font-medium px-4 py-2.5 rounded-lg transition disabled:opacity-60"
+                style={{ background: "#F5F0F1", color: "#8F8290" }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
- 
+
 function PhaseRing({ cycle, today, phase }) {
   const size = 160;
   const stroke = 14;
   const r = (size - stroke) / 2;
   const c = size / 2;
   const circumference = 2 * Math.PI * r;
- 
+
   const ovulationDay = cycle.cycleLength - 14;
   const segments = [
     { key: "menstrual", start: 0, end: cycle.periodLength },
@@ -429,12 +613,12 @@ function PhaseRing({ cycle, today, phase }) {
     { key: "fertile", start: ovulationDay - 4, end: ovulationDay },
     { key: "luteal", start: ovulationDay, end: cycle.cycleLength },
   ];
- 
+
   const todayDay = dayInCycle(today, cycle);
   const todayAngle = (todayDay / cycle.cycleLength) * 360 - 90;
   const markerX = c + r * Math.cos((todayAngle * Math.PI) / 180);
   const markerY = c + r * Math.sin((todayAngle * Math.PI) / 180);
- 
+
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
       {segments.map((seg) => {
@@ -467,17 +651,16 @@ function PhaseRing({ cycle, today, phase }) {
     </svg>
   );
 }
- 
+
 function buildMonthGrid(viewDate) {
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth();
   const firstDay = new Date(year, month, 1);
   const startOffset = firstDay.getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
- 
+
   const cells = [];
   for (let i = 0; i < startOffset; i++) cells.push({ date: null });
   for (let d = 1; d <= daysInMonth; d++) cells.push({ date: new Date(year, month, d) });
   return cells;
 }
- 

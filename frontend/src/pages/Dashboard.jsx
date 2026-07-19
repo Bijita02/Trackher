@@ -30,8 +30,6 @@ const PHASE_DISPLAY = {
   luteal: { label: "Luteal", color: "#B96C87" },
 };
 
-// Ungrouped-phase colors, matching PHASE in cycledetails.jsx — needed because
-// phaseForDay() can return "fertile" / "ovulation" as distinct from the grouped labels above
 const RING_COLORS = {
   menstrual: "#E23670",
   follicular: "#8C7CD6",
@@ -49,11 +47,8 @@ function Dashboard() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isVibeOpen, setIsVibeOpen] = useState(false);
 
-  // Which week is shown in the strip: 0 = this week, -1 = last week, 1 = next week, etc.
   const [weekOffset, setWeekOffset] = useState(0);
 
-  // Quick "Log period" action state — logDate is whichever date is being logged
-  // (today, when opened from the quick-action circle; or a clicked week-strip day)
   const [showLogModal, setShowLogModal] = useState(false);
   const [logDate, setLogDate] = useState(null);
   const [logSaving, setLogSaving] = useState(false);
@@ -192,14 +187,12 @@ function Dashboard() {
     : null;
 
   const cycleDay = CYCLE ? dayInCycle(today, CYCLE) : null;
-  const rawPhase = CYCLE ? phaseForDay(cycleDay, CYCLE) : null; // ungrouped: menstrual/follicular/fertile/ovulation/luteal
-  const currentPhase = CYCLE ? groupPhase(rawPhase) : null;     // grouped: menstrual/follicular/ovulatory/luteal
+  const rawPhase = CYCLE ? phaseForDay(cycleDay, CYCLE) : null;
+  const currentPhase = CYCLE ? groupPhase(rawPhase) : null;
 
-  // Days until ovulation (only meaningful before ovulation happens this cycle)
   const ovulationDay = CYCLE ? CYCLE.cycleLength - 14 : null;
   const daysToOvulation = ovulationDay != null && cycleDay != null ? ovulationDay - cycleDay : null;
 
-  // Days until next period — always computed, shown as a small line regardless of phase
   const untilNextPeriod = CYCLE
     ? ((CYCLE.cycleLength - (cycleDay % CYCLE.cycleLength)) % CYCLE.cycleLength) || CYCLE.cycleLength
     : null;
@@ -223,7 +216,6 @@ function Dashboard() {
     }
   }
 
-  // Week strip: centered on whichever day is the middle of the selected week
   const weekCenter = CYCLE ? addDays(today, weekOffset * 7) : null;
   const weekDays = CYCLE
     ? Array.from({ length: 7 }, (_, i) => addDays(weekCenter, i - 3))
@@ -262,8 +254,17 @@ function Dashboard() {
 
         {user?.cycleInfo?.lastPeriod ? (
           <>
-            {/* Week strip */}
             <div className="rounded-2xl p-5 mb-6 bg-white" style={{ border: `1px solid ${BRAND.border}` }}>
+              <button
+                onClick={() => navigate("/calendar")}
+                className="flex items-center gap-2 mb-4 group"
+              >
+                <Calendar size={16} style={{ color: BRAND.pink }} />
+                <span className="text-sm font-semibold group-hover:underline" style={{ color: BRAND.ink }}>
+                  Calendar
+                </span>
+              </button>
+
               <div className="flex items-center justify-between mb-4">
                 <button
                   onClick={() => setWeekOffset((w) => w - 1)}
@@ -330,7 +331,6 @@ function Dashboard() {
               </div>
             </div>
 
-            {/* Phase ring + countdown */}
             <div
               className="rounded-2xl p-6 mb-8 bg-white flex flex-col items-center"
               style={{ border: `1px solid ${BRAND.border}` }}
@@ -343,7 +343,6 @@ function Dashboard() {
               </p>
             </div>
 
-            {/* Quick actions */}
             <div className="flex justify-center gap-10 mb-8">
               <QuickAction
                 icon={<Droplet size={20} color="#fff" />}
@@ -482,7 +481,6 @@ function QuickAction({ icon, bg, label, onClick }) {
   );
 }
 
-// Same circular phase-progress ring as in cycledetails.jsx
 function PhaseRing({ cycle, today, phase }) {
   const size = 160;
   const stroke = 14;
