@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import logo from "../assets/logo.png";
-import { Bell, Menu, X, Home as HomeIcon } from "lucide-react";
+import { Bell, Heart, BarChart3, Menu, X, Home as HomeIcon } from "lucide-react";
 import { getCycleNotifications, getSymptomBasedNotifications } from "../utils/cycleMath";
+import { getPregnancyNotifications } from "../utils/pregnancyNotifications";
 
 const BRAND = {
   ink: "#241220",
@@ -13,20 +14,32 @@ const BRAND = {
   pinkSoft: "#FCE1EA",
   border: "#EFE2E8",
 };
+const PREGNANCY_ROUTES = ["/pregnancy-dashboard", "/pregnancy-setup", "/pregnancy-calendar", "/weight-tracker", "/cravings"];
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem("token"));
+
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [dismissedIds, setDismissedIds] = useState(() => new Set());
+
+  const [showPregnancyNotifications, setShowPregnancyNotifications] = useState(false);
+  const [pregnancyNotifications, setPregnancyNotifications] = useState([]);
+  const [dismissedPregnancyIds, setDismissedPregnancyIds] = useState(() => new Set());
+  const [hasPregnancyTracking, setHasPregnancyTracking] = useState(false);
+
   const navigate = useNavigate();
   const location = useLocation();
+
+  const isOnPregnancySection = PREGNANCY_ROUTES.some((r) => location.pathname.startsWith(r));
+  const showPregnancyBell = hasPregnancyTracking && isOnPregnancySection;
 
   useEffect(() => {
     setIsLoggedIn(!!localStorage.getItem("token"));
     setIsOpen(false);
     setShowNotifications(false);
+    setShowPregnancyNotifications(false);
   }, [location]);
 
   useEffect(() => {
@@ -92,15 +105,85 @@ const Navbar = () => {
     };
   }, [isLoggedIn]);
 
+  // Pregnancy notifications — separate source, separate bell
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setPregnancyNotifications([]);
+      setHasPregnancyTracking(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadPregnancyNotifications = async () => {
+      try {
+        const userId = localStorage.getItem("userId");
+        const token = localStorage.getItem("token");
+        if (!userId || !token) return;
+
+        const userRes = await fetch(`http://localhost:5000/api/users/${userId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!userRes.ok) return;
+
+        const data = await userRes.json();
+        const dueDateStr = data?.pregnancyInfo?.dueDate;
+
+        if (!dueDateStr) {
+          if (!cancelled) {
+            setHasPregnancyTracking(false);
+            setPregnancyNotifications([]);
+          }
+          return;
+        }
+
+        const remindersRes = await fetch("http://localhost:5000/api/pregnancy-reminders", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const reminders = remindersRes.ok ? await remindersRes.json() : [];
+
+        const built = getPregnancyNotifications({
+          dueDate: new Date(dueDateStr),
+          today: new Date(),
+          reminders: Array.isArray(reminders) ? reminders : [],
+        });
+
+        if (!cancelled) {
+          setHasPregnancyTracking(true);
+          setPregnancyNotifications(built);
+        }
+      } catch (err) {
+        console.error("Failed to load pregnancy notifications:", err);
+      }
+    };
+
+    loadPregnancyNotifications();
+
+    const handlePregnancyUpdated = () => loadPregnancyNotifications();
+    window.addEventListener("pregnancy:updated", handlePregnancyUpdated);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener("pregnancy:updated", handlePregnancyUpdated);
+    };
+  }, [isLoggedIn]);
+
   const visibleNotifications = notifications.filter((n) => !dismissedIds.has(n.id));
+  const visiblePregnancyNotifications = pregnancyNotifications.filter(
+    (n) => !dismissedPregnancyIds.has(n.id)
+  );
 
   const dismissNotification = (id) => {
     setDismissedIds((prev) => new Set(prev).add(id));
+  };
+  const dismissPregnancyNotification = (id) => {
+    setDismissedPregnancyIds((prev) => new Set(prev).add(id));
   };
 
   const handleNotificationAction = (n) => {
     if (n.actionPath) {
       setShowNotifications(false);
+      setShowPregnancyNotifications(false);
       setIsOpen(false);
       navigate(n.actionPath);
     }
@@ -111,10 +194,13 @@ const Navbar = () => {
     localStorage.removeItem("userId");
     setIsLoggedIn(false);
     setNotifications([]);
+    setPregnancyNotifications([]);
     navigate("/");
   };
 
+  const isActive = (path) => location.pathname === path;
   const isHomeActive = () => location.pathname === "/" || location.pathname === "/dashboard";
+  const goToStats = () => navigate("/cycle-stats");
 
   const NavItem = ({ to, onClick, icon, label, active }) => {
     const className = `group flex items-center h-10 rounded-full pl-2.5 transition-all duration-300 ease-out ${
@@ -200,6 +286,56 @@ const Navbar = () => {
     </>
   );
 
+  const PregnancyNotificationsPanel = () => (
+    <>
+      <p className="font-semibold mb-2" style={{ color: BRAND.ink }}>
+        Pregnancy updates
+      </p>
+      {visiblePregnancyNotifications.length === 0 ? (
+        <p className="text-xs" style={{ color: BRAND.muted }}>
+          No new updates
+        </p>
+      ) : (
+        <div className="space-y-2 max-h-72 overflow-y-auto">
+          {visiblePregnancyNotifications.map((n) => (
+            <div
+              key={n.id}
+              className="flex items-start gap-2 rounded-xl p-2.5"
+              style={{ background: BRAND.pinkSoft }}
+            >
+              <span className="text-base leading-none mt-0.5">{n.icon}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold" style={{ color: BRAND.ink }}>
+                  {n.title}
+                </p>
+                <p className="text-[11px] mt-0.5" style={{ color: BRAND.muted }}>
+                  {n.message}
+                </p>
+                {n.actionLabel && n.actionPath && (
+                  <button
+                    onClick={() => handleNotificationAction(n)}
+                    className="text-[11px] font-semibold mt-1.5 underline"
+                    style={{ color: BRAND.pink }}
+                  >
+                    {n.actionLabel} →
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={() => dismissPregnancyNotification(n.id)}
+                aria-label="Dismiss notification"
+                className="shrink-0 text-[11px] font-medium px-1.5 py-0.5 rounded-full hover:bg-white/60 transition-colors"
+                style={{ color: BRAND.muted }}
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+
   return (
     <nav className="fixed w-full z-50 bg-white shadow-[0_1px_0_rgba(36,18,32,0.06)]">
       <div className="max-w-7xl mx-auto pl-2 pr-6 h-20 flex justify-between items-center">
@@ -223,10 +359,22 @@ const Navbar = () => {
         <div className="hidden md:flex items-center gap-2">
           <NavItem to="/" icon={<HomeIcon size={18} strokeWidth={2} />} label="Home" active={isHomeActive()} />
 
-          {isLoggedIn && (
+          {isLoggedIn && !isOnPregnancySection && (
+            <NavItem
+              onClick={goToStats}
+              icon={<BarChart3 size={18} strokeWidth={2} />}
+              label="Stats"
+              active={isActive("/cycle-stats")}
+            />
+          )}
+
+          {isLoggedIn && !isOnPregnancySection && (
             <div className="relative group">
               <button
-                onClick={() => setShowNotifications((v) => !v)}
+                onClick={() => {
+                  setShowNotifications((v) => !v);
+                  setShowPregnancyNotifications(false);
+                }}
                 aria-label="Notifications"
                 className={`group flex items-center h-10 rounded-full pl-2.5 transition-all duration-300 ease-out ${
                   showNotifications
@@ -260,6 +408,51 @@ const Navbar = () => {
                   style={{ borderColor: BRAND.border }}
                 >
                   <NotificationsPanel />
+                </div>
+              )}
+            </div>
+          )}
+
+          {isLoggedIn && showPregnancyBell && (
+            <div className="relative group">
+              <button
+                onClick={() => {
+                  setShowPregnancyNotifications((v) => !v);
+                  setShowNotifications(false);
+                }}
+                aria-label="Pregnancy notifications"
+                className={`group flex items-center h-10 rounded-full pl-2.5 transition-all duration-300 ease-out ${
+                  showPregnancyNotifications
+                    ? "bg-gradient-to-r from-[#E23670] to-[#C82D60] text-white shadow-[0_2px_10px_rgba(226,54,112,0.35)] pr-4"
+                    : "pr-2.5 hover:pr-4 text-[#4A3E47] hover:bg-[#F6EEF1]"
+                }`}
+              >
+                <span className="relative flex items-center justify-center shrink-0 h-5 w-5">
+                  <Heart size={18} strokeWidth={2} />
+                  {visiblePregnancyNotifications.length > 0 && (
+                    <span
+                      className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full ring-2 ring-white"
+                      style={{ background: BRAND.pink }}
+                    />
+                  )}
+                </span>
+                <span
+                  className={`overflow-hidden whitespace-nowrap text-sm font-medium transition-all duration-300 ease-out ${
+                    showPregnancyNotifications
+                      ? "max-w-[100px] opacity-100 ml-2"
+                      : "max-w-0 opacity-0 ml-0 group-hover:max-w-[100px] group-hover:opacity-100 group-hover:ml-2"
+                  }`}
+                >
+                  Bump
+                </span>
+              </button>
+
+              {showPregnancyNotifications && (
+                <div
+                  className="absolute right-0 mt-2.5 w-80 bg-white rounded-2xl shadow-[0_8px_24px_rgba(36,18,32,0.12)] border p-4 text-sm z-50"
+                  style={{ borderColor: BRAND.border }}
+                >
+                  <PregnancyNotificationsPanel />
                 </div>
               )}
             </div>
@@ -328,7 +521,22 @@ const Navbar = () => {
             Home
           </Link>
 
-          {isLoggedIn && (
+          {isLoggedIn && !isOnPregnancySection && (
+            <button
+              onClick={() => {
+                goToStats();
+                setIsOpen(false);
+              }}
+              className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl ${
+                isActive("/cycle-stats") ? "bg-gradient-to-r from-[#E23670] to-[#C82D60] text-white shadow-[0_2px_10px_rgba(226,54,112,0.35)]" : "text-[#4A3E47] hover:bg-[#F6EEF1]"
+              }`}
+            >
+              <BarChart3 size={18} strokeWidth={2} />
+              Cycle Stats
+            </button>
+          )}
+
+          {isLoggedIn && !isOnPregnancySection && (
             <>
               <button
                 onClick={() => setShowNotifications((v) => !v)}
@@ -351,6 +559,34 @@ const Navbar = () => {
               {showNotifications && (
                 <div className="mx-4 mt-1 rounded-xl border p-4 text-sm" style={{ borderColor: BRAND.border }}>
                   <NotificationsPanel />
+                </div>
+              )}
+            </>
+          )}
+
+          {isLoggedIn && showPregnancyBell && (
+            <>
+              <button
+                onClick={() => setShowPregnancyNotifications((v) => !v)}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl relative ${
+                  showPregnancyNotifications ? "bg-gradient-to-r from-[#E23670] to-[#C82D60] text-white shadow-[0_2px_10px_rgba(226,54,112,0.35)]" : "text-[#4A3E47] hover:bg-[#F6EEF1]"
+                }`}
+              >
+                <span className="relative flex items-center justify-center">
+                  <Heart size={18} strokeWidth={2} />
+                  {visiblePregnancyNotifications.length > 0 && (
+                    <span
+                      className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full ring-2 ring-white"
+                      style={{ background: showPregnancyNotifications ? "#fff" : BRAND.pink }}
+                    />
+                  )}
+                </span>
+                Pregnancy updates
+              </button>
+
+              {showPregnancyNotifications && (
+                <div className="mx-4 mt-1 rounded-xl border p-4 text-sm" style={{ borderColor: BRAND.border }}>
+                  <PregnancyNotificationsPanel />
                 </div>
               )}
             </>
