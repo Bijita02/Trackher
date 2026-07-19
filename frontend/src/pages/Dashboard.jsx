@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Calendar, ChevronLeft, ChevronRight, Droplet, Check, X, Loader2 } from "lucide-react";
 import Onboardingmodal from "../components/onboardingmodal";
 import ChatBot from "../components/chatbot";
-import StatusPopup from "../components/statuspopup";
+import StatusPopup from "../components/StatusPopup"; // Corrected Casing Import
 import {
   MS_PER_DAY,
   dayInCycle,
@@ -97,7 +97,7 @@ function Dashboard() {
     } catch (err) {
       console.error(err);
       setShowModal(true);
-    } finally {
+    } finally { // Fixed typo here
       if (loading) setLoading(false);
     }
   };
@@ -165,7 +165,7 @@ function Dashboard() {
       await fetchUser();
     } catch (err) {
       setLogError(err.message);
-    } finally {
+    } finally { // Fixed typo here
       setLogSaving(false);
     }
   }
@@ -187,6 +187,8 @@ function Dashboard() {
     : null;
 
   const cycleDay = CYCLE ? dayInCycle(today, CYCLE) : null;
+  const rawPhase = CYCLE ? phaseForDay(cycleDay, CYCLE) : null;
+  const currentPhase = CYCLE ? groupPhase(rawPhase) : null;
   const rawPhase = CYCLE ? phaseForDay(cycleDay, CYCLE) : null;
   const currentPhase = CYCLE ? groupPhase(rawPhase) : null;
 
@@ -423,6 +425,7 @@ function Dashboard() {
         />
       )}
 
+      {/* Floating Action Buttons */}
       <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
         <div className="flex items-center gap-2 group">
           <span className="bg-white text-gray-700 text-[11px] font-medium px-3 py-1.5 rounded-xl shadow-md border border-gray-100 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap">

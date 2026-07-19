@@ -1,18 +1,50 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const StatusSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  username: { type: String, required: true },
-  vibeBadge: {
-    emoji: { type: String, required: true },
-    text: { type: String, required: true }
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
   },
-  statusText: { type: String, required: true, maxLength: 100 },
-  createdAt: { type: Date, default: Date.now, expires: 86400 }, // Auto-deletes in 24 hours
-  reactions: {
-    hug: { type: Number, default: 0 },
-    chocolate: { type: Number, default: 0 }
-  }
+  userName: {
+    type: String,
+    required: true,
+  },
+  content: {
+    type: String,
+    required: true,
+  },
+  likes: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    }
+  ],
+  comments: [
+    {
+      user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: true,
+      },
+      userName: {
+        type: String,
+        required: true,
+      },
+      text: {
+        type: String,
+        required: true,
+      },
+      createdAt: {
+        type: Date,
+        default: Date.now,
+      }
+    }
+  ],
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
 });
 
-module.exports = mongoose.model('Status', StatusSchema);
+module.exports = mongoose.model("Status", StatusSchema);
