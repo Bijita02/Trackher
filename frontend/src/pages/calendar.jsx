@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import CycleDetails from "../components/cycledetails";
+import { parseCalendarDate } from "../utils/cycleMath";
 
 function CalendarPage() {
   const navigate = useNavigate();
@@ -67,7 +68,8 @@ function CalendarPage() {
 
   const cycleLength = Number(user.cycleInfo.cycleLength);
   const periodLength = Number(user.cycleInfo.periodLength);
-  const lastPeriodDate = new Date(user.cycleInfo.lastPeriod);
+
+  const lastPeriodDate = parseCalendarDate(user.cycleInfo.lastPeriod);
 
   return (
     <div className="min-h-screen bg-[#FDF6F3]">

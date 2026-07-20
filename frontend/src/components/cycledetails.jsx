@@ -8,6 +8,7 @@ import {
   daysUntilNextPeriod,
   toInputDate,
   fromInputDate,
+  parseCalendarDate,
 } from "../utils/cycleMath";
 
 const PHASE = {
@@ -18,12 +19,11 @@ const PHASE = {
   luteal: { label: "Luteal", color: "#B96C87", soft: "#F6E4EA", icon: Moon },
 };
 
-// Finds a logged history entry that a given date falls inside (start..end inclusive)
 function findLoggedEntry(date, history) {
   const t = stripTime(date);
   return (history || []).find((h) => {
-    const start = stripTime(new Date(h.date));
-    const end = h.endDate ? stripTime(new Date(h.endDate)) : start;
+    const start = stripTime(parseCalendarDate(h.date));
+    const end = h.endDate ? stripTime(parseCalendarDate(h.endDate)) : start;
     return t >= start && t <= end;
   });
 }
@@ -32,7 +32,7 @@ export default function Cycledetails({
   lastPeriodStart,
   cycleLength,
   periodLength,
-  history = [],           // real logged period dates, e.g. user.cycleInfo.history
+  history = [],         
   apiBaseUrl = "/api",
   authToken,
   onCycleUpdate,
@@ -40,15 +40,13 @@ export default function Cycledetails({
 }) {
   const today = useMemo(() => new Date(), []);
   const [localLastPeriod, setLocalLastPeriod] = useState(null);
-  const [localHistory, setLocalHistory] = useState(null); // mirrors saved history immediately
+  const [localHistory, setLocalHistory] = useState(null);
 
   const resolvedLastPeriod = localLastPeriod || lastPeriodStart || new Date(2026, 5, 28);
   const resolvedHistory = localHistory || history;
 
-  // every known real period-start date, so past months anchor to
-  // what actually happened instead of being extrapolated from the newest one
   const periodStarts = useMemo(() => {
-    const dates = [resolvedLastPeriod, ...resolvedHistory.map((h) => new Date(h.date))];
+    const dates = [resolvedLastPeriod, ...resolvedHistory.map((h) => parseCalendarDate(h.date))];
     return dates.filter((d) => d instanceof Date && !isNaN(d));
   }, [resolvedLastPeriod, resolvedHistory]);
 
@@ -66,8 +64,8 @@ export default function Cycledetails({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
 
-  const [dayModalDate, setDayModalDate] = useState(null); // Date object or null
-  const [dayModalEntry, setDayModalEntry] = useState(null); // matching history entry, or null if this is a new period
+  const [dayModalDate, setDayModalDate] = useState(null); 
+  const [dayModalEntry, setDayModalEntry] = useState(null);
   const [modalSaving, setModalSaving] = useState(false);
   const [modalError, setModalError] = useState(null);
 
@@ -126,7 +124,7 @@ export default function Cycledetails({
       throw new Error(data?.error || "Couldn't update this period.");
     }
 
-    setLocalLastPeriod(data?.cycleInfo?.lastPeriod ? new Date(data.cycleInfo.lastPeriod) : null);
+    setLocalLastPeriod(parseCalendarDate(data?.cycleInfo?.lastPeriod));
     setLocalHistory(data?.cycleInfo?.history || []);
     onCycleUpdate?.(data);
     return data;
@@ -145,7 +143,7 @@ export default function Cycledetails({
       throw new Error(data?.error || "Couldn't remove this period.");
     }
 
-    setLocalLastPeriod(data?.cycleInfo?.lastPeriod ? new Date(data.cycleInfo.lastPeriod) : null);
+    setLocalLastPeriod(parseCalendarDate(data?.cycleInfo?.lastPeriod));
     setLocalHistory(data?.cycleInfo?.history || []);
     onCycleUpdate?.(data);
     return data;
@@ -182,7 +180,6 @@ export default function Cycledetails({
     setSaveError(null);
   }
 
-  // called from the day popup when logging a brand-new period
   async function handleLogPeriodFromModal(startStr, endStr) {
     setModalSaving(true);
     setModalError(null);
@@ -197,7 +194,6 @@ export default function Cycledetails({
     }
   }
 
-  // called from the day popup when editing an existing logged period
   async function handleUpdatePeriodFromModal(entryId, startStr, endStr) {
     setModalSaving(true);
     setModalError(null);
@@ -212,7 +208,6 @@ export default function Cycledetails({
     }
   }
 
-  // called from the day popup when deleting an existing logged period
   async function handleDeletePeriodFromModal(entryId) {
     setModalSaving(true);
     setModalError(null);
@@ -228,7 +223,7 @@ export default function Cycledetails({
   }
 
   function handleDayClick(date) {
-    if (date > today) return; // don't allow logging future dates
+    if (date > today) return; 
     setModalError(null);
     const existing = findLoggedEntry(date, resolvedHistory);
     setDayModalEntry(existing || null);
@@ -274,9 +269,6 @@ export default function Cycledetails({
         {grid.map((cell, i) => {
           if (!cell.date) return <div key={i} />;
 
-          // NEW: check for a logged entry FIRST, and let it override the
-          // computed phase so edited/shortened/extended periods actually
-          // render pink for their real range instead of the global default
           const loggedEntry = findLoggedEntry(cell.date, resolvedHistory);
           const phase = loggedEntry
             ? "menstrual"
@@ -423,7 +415,6 @@ export default function Cycledetails({
         )}
       </div>
 
-      {/* popup shown when a calendar day is clicked */}
       {dayModalDate && (
         <DayPopup
           date={dayModalDate}
@@ -441,9 +432,6 @@ export default function Cycledetails({
   );
 }
 
-// popup that appears when a day in the calendar grid is clicked.
-// If `entry` is set, the clicked day is inside an already-logged period,
-// so this becomes an edit/delete form instead of a "start new period" prompt.
 function DayPopup({ date, entry, cycle, saving, error, onClose, onLogPeriod, onUpdatePeriod, onDeletePeriod }) {
   const cycleDay = dayInCycle(date, cycle);
   const phase = phaseForDay(cycleDay, cycle);
@@ -454,9 +442,9 @@ function DayPopup({ date, entry, cycle, saving, error, onClose, onLogPeriod, onU
     day: "numeric",
   });
 
-  const defaultStart = entry ? new Date(entry.date) : date;
+  const defaultStart = entry ? parseCalendarDate(entry.date) : date;
   const defaultEnd = entry?.endDate
-    ? new Date(entry.endDate)
+    ? parseCalendarDate(entry.endDate)
     : addDays(date, (cycle.periodLength || 5) - 1);
 
   const [startVal, setStartVal] = useState(toInputDate(defaultStart));

@@ -10,6 +10,20 @@ export function addDays(date, n) {
   return d;
 }
 
+export function parseCalendarDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) {
+    if (isNaN(value)) return null;
+    return new Date(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate());
+  }
+  const str = String(value);
+  const datePart = str.split("T")[0];
+  const parts = datePart.split("-").map(Number);
+  if (parts.length !== 3 || parts.some((n) => Number.isNaN(n))) return null;
+  const [y, m, d] = parts;
+  return new Date(y, m - 1, d);
+}
+
 function getSortedAnchors(cycle) {
   const raw = cycle.periodStarts && cycle.periodStarts.length > 0
     ? cycle.periodStarts
@@ -117,7 +131,6 @@ export function getCycleNotifications(cycle, today = new Date()) {
   const daysToNextPeriod = daysUntilNextPeriod(today, cycle);
   const fertileWindowStartDay = ovulationDay - 4;
 
-  // --- Late period detection ---
   const isLate = daysSinceAnchor > cycle.cycleLength + 2 && daysSinceAnchor < cycle.cycleLength * 2;
 
   if (isLate) {
@@ -129,7 +142,6 @@ export function getCycleNotifications(cycle, today = new Date()) {
     });
   }
 
-  // --- Menstrual phase: on-period status ---
   if (rawPhase === "menstrual") {
     notifications.push({
       id: "on-period",
@@ -151,7 +163,6 @@ export function getCycleNotifications(cycle, today = new Date()) {
     });
   }
 
-  // --- Fertile window / ovulation ---
   if (rawPhase === "ovulation") {
     notifications.push({
       id: "ovulation-today",
@@ -173,7 +184,6 @@ export function getCycleNotifications(cycle, today = new Date()) {
     });
   }
 
-  // --- Cycle-syncing / wellness tips per phase ---
   if (rawPhase === "follicular") {
     notifications.push({
       id: "follicular-tip",
@@ -213,10 +223,6 @@ export function getCycleNotifications(cycle, today = new Date()) {
   return notifications;
 }
 
-// --- Symptom-driven notifications ---
-// These are generated from the symptoms you log most often across all your
-// entries, so the bell surfaces patterns worth paying attention to instead
-// of generic tips.
 const SYMPTOM_TIPS = {
   Migraines: { icon: "🧊", title: "You often log Migraines", message: "Try resting in a dark, quiet room when they hit." },
   Headache: { icon: "🧊", title: "You often log Headaches", message: "Staying hydrated and resting your eyes may help." },
@@ -240,16 +246,6 @@ const SYMPTOM_TIPS = {
   "Tender breasts": { icon: "🎗️", title: "You often log Tender breasts", message: "A supportive bra may help ease the discomfort." },
 };
 
-/**
- * Computes which symptom tags appear most often across all logs and
- * returns notifications for the top ones. Mirrors the "frequent tags"
- * logic already used in SymptomsPage, so the bell stays consistent with
- * what the person sees there.
- *
- * @param {Array} allLogs - full array of symptom logs from the API
- * @param {number} topN - how many top symptoms to surface (default 3)
- * @param {number} minCount - minimum times a tag must appear to qualify (default 2)
- */
 export function getSymptomBasedNotifications(allLogs, topN = 3, minCount = 2) {
   const notifications = [];
   if (!Array.isArray(allLogs) || allLogs.length === 0) {
@@ -278,7 +274,7 @@ export function getSymptomBasedNotifications(allLogs, topN = 3, minCount = 2) {
         message: `${tip.message} (logged ${count} times)`,
       });
     } else {
-      // Fallback for tags without a specific tip (e.g. custom symptoms)
+
       notifications.push({
         id: `symptom-freq-${tag.toLowerCase().replace(/\s+/g, "-")}`,
         icon: "📝",

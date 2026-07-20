@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Calendar, ChevronLeft, ChevronRight, Droplet, Check, X, Loader2 } from "lucide-react";
 import Onboardingmodal from "../components/onboardingmodal";
 import ChatBot from "../components/chatbot";
-import StatusPopup from "../components/StatusPopup"; // Corrected Casing Import
+import StatusPopup from "../components/StatusPopup"; 
 import {
   MS_PER_DAY,
   dayInCycle,
@@ -97,7 +97,7 @@ function Dashboard() {
     } catch (err) {
       console.error(err);
       setShowModal(true);
-    } finally { // Fixed typo here
+    } finally {
       if (loading) setLoading(false);
     }
   };
@@ -165,7 +165,7 @@ function Dashboard() {
       await fetchUser();
     } catch (err) {
       setLogError(err.message);
-    } finally { // Fixed typo here
+    } finally { 
       setLogSaving(false);
     }
   }
@@ -187,8 +187,6 @@ function Dashboard() {
     : null;
 
   const cycleDay = CYCLE ? dayInCycle(today, CYCLE) : null;
-  const rawPhase = CYCLE ? phaseForDay(cycleDay, CYCLE) : null;
-  const currentPhase = CYCLE ? groupPhase(rawPhase) : null;
   const rawPhase = CYCLE ? phaseForDay(cycleDay, CYCLE) : null;
   const currentPhase = CYCLE ? groupPhase(rawPhase) : null;
 
