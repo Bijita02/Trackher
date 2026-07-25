@@ -1,12 +1,14 @@
 require("dotenv").config();
 console.log("Checking API Key:", process.env.GEMINI_API_KEY ? "Key Found!" : "Key MISSING!");
 console.log("Checking JWT Secret:", process.env.JWT_SECRET ? "Secret Found!" : "Secret MISSING!");
+
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const validator = require("validator");
+
 const User = require("./models/User");
 const symptomsRoute = require("./Routes/SymptomsRoute");
 const AiChatRoute = require("./Routes/AiChatRoute");
@@ -21,55 +23,49 @@ app.use(express.json());
 
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB Connected"))
-  .catch(err => console.log(err));
+  .catch(err => console.error("MongoDB Connection Error:", err));
 
-function verifyToken(req) {
+// ==========================================
+// Authentication Middleware
+// ==========================================
+const authenticateToken = (req, res, next) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    const err = new Error("No token provided");
-    err.status = 401;
-    throw err;
+    return res.status(401).json({ error: "No token provided" });
   }
 
   const token = authHeader.slice(7).trim();
 
   if (!token || token === "null" || token === "undefined") {
-    const err = new Error("No token provided");
-    err.status = 401;
-    throw err;
+    return res.status(401).json({ error: "No token provided" });
   }
 
-  try {
-    return jwt.verify(token, process.env.JWT_SECRET);
-  } catch (jwtErr) {
-
-    console.error("JWT verify failed:", jwtErr.name, "-", jwtErr.message);
-
-    const err = new Error(
-      jwtErr.name === "TokenExpiredError"
+  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+    if (err) {
+      const message = err.name === "TokenExpiredError"
         ? "Your session has expired. Please log in again."
-        : "Invalid token"
-    );
-    err.status = 401;
-    throw err;
-  }
-}
+        : "Invalid token";
+      return res.status(401).json({ error: message });
+    }
 
+    req.user = decoded;
+    next();
+  });
+};
+
+// ==========================================
+// Helper Functions
+// ==========================================
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const TOTAL_PREGNANCY_DAYS = 280;
 
-// Computes an end date from a start date + period length when no
-// explicit end date is provided
 function computeEndDate(startDate, periodLength) {
   const end = new Date(startDate);
   end.setDate(end.getDate() + (periodLength || 5) - 1);
   return end;
 }
 
-// After editing/deleting a history entry, recompute cycleInfo.lastPeriod
-// (and periodLength) from whatever the most recent remaining entry is,
-// so the "current" snapshot fields stay consistent with history
 async function syncLatestPeriod(userId) {
   const user = await User.findById(userId);
   if (!user) return null;
@@ -86,6 +82,9 @@ async function syncLatestPeriod(userId) {
   return user;
 }
 
+// ==========================================
+// Public Routes
+// ==========================================
 app.get("/", (req, res) => {
   res.send("Backend server is running");
 });
@@ -100,6 +99,7 @@ app.post("/api/register", async (req, res) => {
     if (existingUser) {
       return res.status(400).json({ error: "Email already exists" });
     }
+
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = new User({ name, email, password: hashedPassword, birthdate });
     await user.save();
@@ -118,6 +118,7 @@ app.post("/api/register", async (req, res) => {
       userId: userIdString,
     });
   } catch (err) {
+    console.error("Register Error:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -141,13 +142,11 @@ app.post("/api/login", async (req, res) => {
 
     res.json({ message: "Login successful", token, userId: userIdString });
   } catch (err) {
+    console.error("Login Error:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// POST /api/reset-password
-// Directly updates a user's password given their email — no token or
-// email verification step. Simple by design for now.
 app.post("/api/reset-password", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -174,15 +173,13 @@ app.post("/api/reset-password", async (req, res) => {
   }
 });
 
-app.post("/api/user-cycle", async (req, res) => {
+// ==========================================
+// Protected Cycle & Pregnancy Routes
+// ==========================================
+app.post("/api/user-cycle", authenticateToken, async (req, res) => {
   try {
-    const decoded = verifyToken(req);
     const { lastPeriod, periodEnd, cycleLength, periodLength } = req.body;
-
-    const targetUserId = decoded.id || decoded._id;
-    if (!targetUserId) {
-      return res.status(400).json({ error: "User ID missing from authentication token" });
-    }
+    const targetUserId = req.user.id || req.user._id;
 
     const parsedCycleLength = cycleLength ? Number(cycleLength) : undefined;
     const parsedPeriodLength = periodLength ? Number(periodLength) : undefined;
@@ -228,19 +225,16 @@ app.post("/api/user-cycle", async (req, res) => {
       message: "Cycle updated successfully",
       user: updatedUser,
     });
-
   } catch (err) {
     console.error("Cycle update error:", err);
-    res.status(err.status || 500).json({ error: err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// EDIT an existing logged period's start/end date
-app.put("/api/user-cycle/:entryId", async (req, res) => {
+app.put("/api/user-cycle/:entryId", authenticateToken, async (req, res) => {
   try {
-    const decoded = verifyToken(req);
     const { lastPeriod, periodEnd, periodLength } = req.body;
-    const targetUserId = decoded.id || decoded._id;
+    const targetUserId = req.user.id || req.user._id;
 
     if (!lastPeriod) {
       return res.status(400).json({ error: "lastPeriod is required" });
@@ -283,15 +277,13 @@ app.put("/api/user-cycle/:entryId", async (req, res) => {
     res.json(synced);
   } catch (err) {
     console.error("Cycle entry update error:", err);
-    res.status(err.status || 500).json({ error: err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// DELETE a logged period entirely
-app.delete("/api/user-cycle/:entryId", async (req, res) => {
+app.delete("/api/user-cycle/:entryId", authenticateToken, async (req, res) => {
   try {
-    const decoded = verifyToken(req);
-    const targetUserId = decoded.id || decoded._id;
+    const targetUserId = req.user.id || req.user._id;
 
     const exists = await User.findOne({
       _id: targetUserId,
@@ -309,13 +301,12 @@ app.delete("/api/user-cycle/:entryId", async (req, res) => {
     res.json(synced);
   } catch (err) {
     console.error("Cycle entry delete error:", err);
-    res.status(err.status || 500).json({ error: err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 
-app.post("/api/pregnancy-info", async (req, res) => {
+app.post("/api/pregnancy-info", authenticateToken, async (req, res) => {
   try {
-    const decoded = verifyToken(req);
     const { dueDate, lastPeriod } = req.body;
 
     let resolvedDueDate;
@@ -332,7 +323,7 @@ app.post("/api/pregnancy-info", async (req, res) => {
     }
 
     const user = await User.findByIdAndUpdate(
-      decoded.id || decoded._id,
+      req.user.id || req.user._id,
       {
         pregnancyInfo: {
           dueDate: resolvedDueDate,
@@ -346,16 +337,15 @@ app.post("/api/pregnancy-info", async (req, res) => {
     if (!user) return res.status(404).json({ error: "User not found" });
     res.json(user);
   } catch (err) {
-    res.status(err.status || 500).json({ error: err.message });
+    console.error("Pregnancy info error:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 
-app.delete("/api/pregnancy-info", async (req, res) => {
+app.delete("/api/pregnancy-info", authenticateToken, async (req, res) => {
   try {
-    const decoded = verifyToken(req);
-
     const user = await User.findByIdAndUpdate(
-      decoded.id || decoded._id,
+      req.user.id || req.user._id,
       { $set: { pregnancyInfo: null } },
       { new: true }
     );
@@ -363,26 +353,31 @@ app.delete("/api/pregnancy-info", async (req, res) => {
     if (!user) return res.status(404).json({ error: "User not found" });
     res.json(user);
   } catch (err) {
-    res.status(err.status || 500).json({ error: err.message });
+    console.error("Delete pregnancy info error:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 
-app.get("/api/users/:id", async (req, res) => {
+app.get("/api/users/:id", authenticateToken, async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ error: "User not found" });
     res.json(user);
   } catch (err) {
+    console.error("Fetch user error:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-app.use('/api/status', statusRoutes);
+// ==========================================
+// External Route Modules
+// ==========================================
+app.use("/api/status", statusRoutes);
 app.use("/api/symptoms", symptomsRoute);
 app.use("/api/ai", AiChatRoute);
 app.use("/api/weight", weightRoute);
 app.use("/api/cravings", cravingsRoute);
 app.use("/api/pregnancy-reminders", pregnancyReminderRoute);
-
+stautu
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

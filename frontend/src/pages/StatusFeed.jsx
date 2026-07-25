@@ -42,7 +42,6 @@ function StatusFeed() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ userId: currentUserId }),
       });
       
       const data = await res.json();
@@ -51,7 +50,7 @@ function StatusFeed() {
           prev.map((item) => (item._id === statusId ? { ...item, likes: data.likes } : item))
         );
       } else {
-        console.error("Like backend rejected request:", data.error || res.statusText);
+        console.error("Like failed:", data.error);
       }
     } catch (err) {
       console.error("Error updating status like:", err);
@@ -72,20 +71,45 @@ function StatusFeed() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ 
-          userId: currentUserId,
-          userName: localStorage.getItem("userName") || "Meejala",
           text: commentText 
         }),
       });
+
       const data = await res.json();
       if (res.ok) {
         setStatuses((prev) =>
           prev.map((item) => (item._id === statusId ? { ...item, comments: data.comments } : item))
         );
         setCommentInputs((prev) => ({ ...prev, [statusId]: "" }));
+      } else {
+        console.error("Comment failed:", data.error);
       }
     } catch (err) {
       console.error("Error updating status comment:", err);
+    }
+  };
+
+  // Delete Status Handler
+  const handleDeleteStatus = async (statusId) => {
+    if (!window.confirm("Are you sure you want to delete this status update?")) return;
+
+    try {
+      const res = await fetch(`http://localhost:5000/api/status/${statusId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        // Remove deleted item from local state list
+        setStatuses((prev) => prev.filter((item) => item._id !== statusId));
+      } else {
+        alert(data.error || "Failed to delete status");
+      }
+    } catch (err) {
+      console.error("Error deleting status:", err);
     }
   };
 
@@ -124,6 +148,8 @@ function StatusFeed() {
           <div className="space-y-4">
             {statuses.map((item) => {
               const hasLiked = item.likes?.includes(currentUserId);
+              // Check if post belongs to logged in user
+              const isOwner = (item.user?._id || item.user) === currentUserId;
 
               return (
                 <div
@@ -135,11 +161,9 @@ function StatusFeed() {
                   <div className="flex items-start justify-between gap-4 pl-2">
                     <div className="space-y-2 flex-1">
                       <div className="flex items-center gap-2">
+                        {/* Corrected Username Display */}
                         <h4 className="font-bold text-sm text-gray-800 tracking-tight">
-                          {!item.username || item.username === "user circle friend" 
-                            ? (localStorage.getItem("userName") || "Meejala") 
-                            : item.username
-                          }
+                          {item.userName || item.username || "Friend"}
                         </h4>
                         <span className="w-1 h-1 rounded-full bg-gray-300" />
                         <span className="text-[10px] text-gray-400 font-medium">
@@ -150,25 +174,38 @@ function StatusFeed() {
                         </span>
                       </div>
 
-                      {/* Fixed below to safely pull content/text directly from whatever key the backend provides */}
                       <p className="text-gray-600 text-sm leading-relaxed font-normal bg-gray-50/60 px-4 py-2.5 rounded-2xl border border-gray-100/50 inline-block">
-                        {item.statusText || item.content || item.text || "Empty status"}
+                        {item.content || item.statusText || item.text || "Empty status"}
                       </p>
 
                       {/* Interaction Sub-section */}
                       <div className="pt-2 space-y-3">
-                        <div className="flex items-center gap-4 text-xs">
-                          <button
-                            type="button"
-                            onClick={() => handleLike(item._id)}
-                            className="flex items-center gap-1 font-bold text-gray-400 hover:text-rose-500 transition-colors"
-                          >
-                            <span>{hasLiked ? "❤️" : "🤍"}</span>
-                            <span>{item.likes?.length || 0}</span>
-                          </button>
-                          <span className="text-gray-400 font-medium">
-                            💬 {item.comments?.length || 0} Replies
-                          </span>
+                        <div className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-4">
+                            <button
+                              type="button"
+                              onClick={() => handleLike(item._id)}
+                              className="flex items-center gap-1 font-bold text-gray-400 hover:text-rose-500 transition-colors"
+                            >
+                              <span>{hasLiked ? "❤️" : "🤍"}</span>
+                              <span>{item.likes?.length || 0}</span>
+                            </button>
+                            <span className="text-gray-400 font-medium">
+                              💬 {item.comments?.length || 0} Replies
+                            </span>
+                          </div>
+
+                          {/* Delete Button (Only visible if the logged-in user owns this status) */}
+                          {isOwner && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteStatus(item._id)}
+                              className="text-gray-300 hover:text-red-500 transition-colors font-semibold text-xs px-2 py-0.5"
+                              title="Delete status"
+                            >
+                              🗑️ Delete
+                            </button>
+                          )}
                         </div>
 
                         {/* Existing Comments Display */}

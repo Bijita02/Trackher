@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import logo from "../assets/logo.png";
-import { FaEye, FaEyeSlash , FaEnvelope, FaLock ,FaArrowRight} from "react-icons/fa";
+import { FaEye, FaEyeSlash, FaEnvelope, FaLock, FaArrowRight } from "react-icons/fa";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -40,11 +40,17 @@ const Login = () => {
 
       if (response.ok) {
         localStorage.setItem("token", data.token);
-        localStorage.setItem("userId", data.userId)
+        localStorage.setItem("userId", data.userId || data.user?._id);
+        
+        // Dynamically save the actual user's display name from backend response
+        const activeName = data.userName || data.username || data.name || data.user?.name || data.user?.userName;
+        if (activeName) {
+          localStorage.setItem("userName", activeName);
+        }
+
         setMessage("Success: " + data.message);
 
-
-         setTimeout(() => navigate("/dashboard") , 1000);
+        setTimeout(() => navigate("/dashboard"), 1000);
       } else {
         setMessage(" Error: " + data.error);
       }
@@ -57,11 +63,8 @@ const Login = () => {
   };
 
   return (
-   <div className="min-h-screen flex items-center justify-center bg-[#FDF6F3] px-4 py-12">
-
+    <div className="min-h-screen flex items-center justify-center bg-[#FDF6F3] px-4 py-12">
       <div className="w-full max-w-md">
-
-
         <div className="flex justify-center mb-5">
           <span className="bg-pink-100 text-pink-600 text-xs font-semibold px-4 py-1.5 rounded-full">
             Welcome back to TrackHer
@@ -75,11 +78,8 @@ const Login = () => {
           Pick up right where you left off.
         </p>
 
-
         <div className="bg-white border border-gray-200 rounded-2xl p-8">
-
           <form onSubmit={handleSubmit} className="space-y-4">
-
             <div className="relative">
               <FaEnvelope className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm" />
               <input
@@ -118,7 +118,6 @@ const Login = () => {
                 Forgot password?
               </Link>
             </div>
-
 
             <button
               type="submit"

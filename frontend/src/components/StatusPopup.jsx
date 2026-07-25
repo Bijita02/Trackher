@@ -17,6 +17,14 @@ export default function StatusPopup({ isOpen, onClose, currentUserName }) {
 
   if (!isOpen) return null;
 
+  // Retrieve logged in user dynamically from localStorage keys
+  const loggedInUser =
+    currentUserName ||
+    localStorage.getItem("userName") ||
+    localStorage.getItem("username") ||
+    localStorage.getItem("user") ||
+    "Friend";
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!statusText.trim() || isSubmitting) return;
@@ -25,7 +33,6 @@ export default function StatusPopup({ isOpen, onClose, currentUserName }) {
       setIsSubmitting(true);
       const userId = localStorage.getItem("userId");
       const token = localStorage.getItem("token") || localStorage.getItem("Token");
-      const activeUser = currentUserName || localStorage.getItem("userName") || "Meejala";
 
       const response = await fetch("http://localhost:5000/api/status/add", {
         method: "POST",
@@ -36,13 +43,14 @@ export default function StatusPopup({ isOpen, onClose, currentUserName }) {
         body: JSON.stringify({
           userId,
           user: userId,             
-          userName: activeUser,     
+          userName: loggedInUser, // Dynamic active user name      
           content: statusText.trim(), 
           vibeBadge: selectedVibe
         }),
       });
 
       if (response.ok) {
+        setStatusText("");
         onClose(); 
         navigate('/status-feed');
       } else {
@@ -55,7 +63,7 @@ export default function StatusPopup({ isOpen, onClose, currentUserName }) {
       console.error("Network problem:", err);
       onClose();
       navigate('/status-feed');
-    } finally { // Fixed typo here
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -72,7 +80,7 @@ export default function StatusPopup({ isOpen, onClose, currentUserName }) {
         </button>
 
         <h3 className="text-lg font-bold text-gray-800 mb-4">
-          Sharing as <span className="text-[#C2597A]">{currentUserName || localStorage.getItem("userName") || "Meejala"}</span> ✨
+          Sharing as <span className="text-[#C2597A]">{loggedInUser}</span> ✨
         </h3>
         
         <form onSubmit={handleSubmit} className="space-y-4">

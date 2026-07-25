@@ -35,27 +35,23 @@ router.get("/feed", async (req, res) => {
 });
 
 // ==========================================================
-// 2. CREATE STATUS POST (Maps text fields directly to your schema keys)
+// 2. CREATE STATUS POST (Fetches user name directly from DB)
 // ==========================================================
 router.post("/add", async (req, res) => {
   try {
-    // 1. Resolve authentication to extract a verified fallback user context
     let authenticatedUserId = null;
     try {
       const decoded = verifyToken(req);
       authenticatedUserId = decoded.id || decoded._id;
     } catch (tokenErr) {
-      // Fallback if token check is lax on addition, but we prefer using req.body.userId if provided
+      // Fallback if token verification fails on add
     }
 
-    const { userId, username, vibeBadge, statusText, content } = req.body;
+    const { userId, userName, username, vibeBadge, statusText, content } = req.body;
 
-    // 2. Map payload dynamically to fulfill the validation requirements
     const targetUser = authenticatedUserId || userId;
     const finalContent = statusText || content;
-    const finalUserName = username || "Meejala";
 
-    // 3. Prevent empty payloads before hits schema validation
     if (!finalContent || finalContent.trim() === "") {
       return res.status(400).json({ error: "Status content cannot be empty" });
     }
@@ -63,11 +59,18 @@ router.post("/add", async (req, res) => {
       return res.status(400).json({ error: "User context identification is required" });
     }
 
-    // 4. Construct the model instance matching your schema rules perfectly
+    // Automatically fetch user profile from DB to get actual account name (e.g., Ansu)
+    const userProfile = await User.findById(targetUser);
+    const activeDisplayName =
+      (userProfile && (userProfile.name || userProfile.userName || userProfile.username)) ||
+      userName ||
+      username ||
+      "Friend";
+
     const newStatus = new Status({
-      user: targetUser,          // Required schema path 'user'
-      userName: finalUserName,   // Required schema path 'userName'
-      content: finalContent.trim(), // Required schema path 'content'
+      user: targetUser,          
+      userName: activeDisplayName, // Dynamically set to real user name
+      content: finalContent.trim(), 
       vibeBadge: vibeBadge || { emoji: "✨", text: "Vibing" },
       likes: [],
       comments: []
@@ -94,7 +97,7 @@ router.post("/:id/like", async (req, res) => {
 
     const hasLiked = post.likes.includes(targetUserId);
     if (hasLiked) {
-      post.likes = post.likes.filter((id) => id.toString() !== targetUserId);
+      post.likes = post.likes.filter((id) => id.toString() !== targetUserId.toString());
     } else {
       post.likes.push(targetUserId);
     }
@@ -123,7 +126,9 @@ router.post("/:id/comment", async (req, res) => {
     if (!post) return res.status(404).json({ error: "Status not found" });
 
     const commenterProfile = await User.findById(targetUserId);
-    const activeDisplayName = commenterProfile ? commenterProfile.name : "Friend";
+    const activeDisplayName =
+      (commenterProfile && (commenterProfile.name || commenterProfile.userName || commenterProfile.username)) ||
+      "Friend";
 
     const newComment = {
       user: targetUserId,
@@ -136,6 +141,31 @@ router.post("/:id/comment", async (req, res) => {
     await post.save();
 
     res.json({ message: "Comment saved successfully", comments: post.comments });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+// ==========================================================
+// 5. DELETE A STATUS POST
+// ==========================================================
+router.delete("/:id", async (req, res) => {
+  try {
+    const decoded = verifyToken(req);
+    const targetUserId = decoded.id || decoded._id;
+
+    const post = await Status.findById(req.params.id);
+    if (!post) {
+      return res.status(404).json({ error: "Status not found" });
+    }
+
+    // Check if the post belongs to the user attempting to delete it
+    if (post.user.toString() !== targetUserId.toString()) {
+      return res.status(403).json({ error: "Unauthorized to delete this status" });
+    }
+
+    await Status.findByIdAndDelete(req.params.id);
+    res.json({ message: "Status deleted successfully", deletedId: req.params.id });
   } catch (err) {
     res.status(err.status || 500).json({ error: err.message });
   }
