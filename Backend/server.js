@@ -25,9 +25,6 @@ mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB Connected"))
   .catch(err => console.error("MongoDB Connection Error:", err));
 
-// ==========================================
-// Authentication Middleware
-// ==========================================
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers.authorization;
 
@@ -54,9 +51,6 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-// ==========================================
-// Helper Functions
-// ==========================================
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const TOTAL_PREGNANCY_DAYS = 280;
 
@@ -82,9 +76,6 @@ async function syncLatestPeriod(userId) {
   return user;
 }
 
-// ==========================================
-// Public Routes
-// ==========================================
 app.get("/", (req, res) => {
   res.send("Backend server is running");
 });
@@ -173,9 +164,6 @@ app.post("/api/reset-password", async (req, res) => {
   }
 });
 
-// ==========================================
-// Protected Cycle & Pregnancy Routes
-// ==========================================
 app.post("/api/user-cycle", authenticateToken, async (req, res) => {
   try {
     const { lastPeriod, periodEnd, cycleLength, periodLength } = req.body;
@@ -369,9 +357,6 @@ app.get("/api/users/:id", authenticateToken, async (req, res) => {
   }
 });
 
-// ==========================================
-// External Route Modules
-// ==========================================
 app.use("/api/status", statusRoutes);
 app.use("/api/symptoms", symptomsRoute);
 app.use("/api/ai", AiChatRoute);

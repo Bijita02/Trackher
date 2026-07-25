@@ -6,10 +6,10 @@ function StatusFeed() {
   const [statuses, setStatuses] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // Inline states for comment forms per status ID
+  
   const [commentInputs, setCommentInputs] = useState({}); 
 
-  // Retrieve current configurations safely from local storage
+  
   const currentUserId = localStorage.getItem("userId");
   const token = localStorage.getItem("token") || localStorage.getItem("Token");
 
@@ -33,7 +33,7 @@ function StatusFeed() {
     }
   };
 
-  // Like Toggle Handler
+  
   const handleLike = async (statusId) => {
     try {
       const res = await fetch(`http://localhost:5000/api/status/${statusId}/like`, {
@@ -57,7 +57,7 @@ function StatusFeed() {
     }
   };
 
-  // Comment Submission Handler
+  
   const handleCommentSubmit = async (e, statusId) => {
     e.preventDefault();
     const commentText = commentInputs[statusId]?.trim();
@@ -89,7 +89,7 @@ function StatusFeed() {
     }
   };
 
-  // Delete Status Handler
+  
   const handleDeleteStatus = async (statusId) => {
     if (!window.confirm("Are you sure you want to delete this status update?")) return;
 
@@ -103,7 +103,7 @@ function StatusFeed() {
 
       const data = await res.json();
       if (res.ok) {
-        // Remove deleted item from local state list
+        
         setStatuses((prev) => prev.filter((item) => item._id !== statusId));
       } else {
         alert(data.error || "Failed to delete status");
@@ -148,7 +148,7 @@ function StatusFeed() {
           <div className="space-y-4">
             {statuses.map((item) => {
               const hasLiked = item.likes?.includes(currentUserId);
-              // Check if post belongs to logged in user
+              
               const isOwner = (item.user?._id || item.user) === currentUserId;
 
               return (
@@ -161,7 +161,7 @@ function StatusFeed() {
                   <div className="flex items-start justify-between gap-4 pl-2">
                     <div className="space-y-2 flex-1">
                       <div className="flex items-center gap-2">
-                        {/* Corrected Username Display */}
+                        
                         <h4 className="font-bold text-sm text-gray-800 tracking-tight">
                           {item.userName || item.username || "Friend"}
                         </h4>
@@ -178,7 +178,7 @@ function StatusFeed() {
                         {item.content || item.statusText || item.text || "Empty status"}
                       </p>
 
-                      {/* Interaction Sub-section */}
+                    
                       <div className="pt-2 space-y-3">
                         <div className="flex items-center justify-between text-xs">
                           <div className="flex items-center gap-4">
@@ -195,7 +195,7 @@ function StatusFeed() {
                             </span>
                           </div>
 
-                          {/* Delete Button (Only visible if the logged-in user owns this status) */}
+                         
                           {isOwner && (
                             <button
                               type="button"
@@ -208,7 +208,7 @@ function StatusFeed() {
                           )}
                         </div>
 
-                        {/* Existing Comments Display */}
+                      
                         {item.comments && item.comments.length > 0 && (
                           <div className="space-y-1.5 bg-gray-50/80 p-3 rounded-xl border border-gray-100/60 max-h-32 overflow-y-auto">
                             {item.comments.map((comment, idx) => (
@@ -220,7 +220,7 @@ function StatusFeed() {
                           </div>
                         )}
 
-                        {/* Inline Reply Form */}
+                        
                         <form onSubmit={(e) => handleCommentSubmit(e, item._id)} className="flex gap-2">
                           <input
                             type="text"

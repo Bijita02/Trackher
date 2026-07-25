@@ -17,7 +17,6 @@ export default function StatusPopup({ isOpen, onClose, currentUserName }) {
 
   if (!isOpen) return null;
 
-  // Retrieve logged in user dynamically from localStorage keys
   const loggedInUser =
     currentUserName ||
     localStorage.getItem("userName") ||
@@ -43,7 +42,7 @@ export default function StatusPopup({ isOpen, onClose, currentUserName }) {
         body: JSON.stringify({
           userId,
           user: userId,             
-          userName: loggedInUser, // Dynamic active user name      
+          userName: loggedInUser,   
           content: statusText.trim(), 
           vibeBadge: selectedVibe
         }),

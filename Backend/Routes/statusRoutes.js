@@ -4,7 +4,7 @@ const Status = require("../models/Status");
 const User = require("../models/User");
 const jwt = require("jsonwebtoken");
 
-// Helper to safely verify the authorization token from incoming headers
+
 function verifyToken(req) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -22,9 +22,7 @@ function verifyToken(req) {
   }
 }
 
-// ==========================================================
-// 1. GET ALL STATUS POSTS (Matches frontend /api/status/feed)
-// ==========================================================
+
 router.get("/feed", async (req, res) => {
   try {
     const statuses = await Status.find().sort({ createdAt: -1 });
@@ -34,9 +32,7 @@ router.get("/feed", async (req, res) => {
   }
 });
 
-// ==========================================================
-// 2. CREATE STATUS POST (Fetches user name directly from DB)
-// ==========================================================
+
 router.post("/add", async (req, res) => {
   try {
     let authenticatedUserId = null;
@@ -44,7 +40,7 @@ router.post("/add", async (req, res) => {
       const decoded = verifyToken(req);
       authenticatedUserId = decoded.id || decoded._id;
     } catch (tokenErr) {
-      // Fallback if token verification fails on add
+      
     }
 
     const { userId, userName, username, vibeBadge, statusText, content } = req.body;
@@ -59,7 +55,7 @@ router.post("/add", async (req, res) => {
       return res.status(400).json({ error: "User context identification is required" });
     }
 
-    // Automatically fetch user profile from DB to get actual account name (e.g., Ansu)
+  
     const userProfile = await User.findById(targetUser);
     const activeDisplayName =
       (userProfile && (userProfile.name || userProfile.userName || userProfile.username)) ||
@@ -84,9 +80,6 @@ router.post("/add", async (req, res) => {
   }
 });
 
-// ==========================================================
-// 3. LIKE / UNLIKE A POST
-// ==========================================================
 router.post("/:id/like", async (req, res) => {
   try {
     const decoded = verifyToken(req);
@@ -109,9 +102,7 @@ router.post("/:id/like", async (req, res) => {
   }
 });
 
-// ==========================================================
-// 4. COMMENT / REPLY ON A POST
-// ==========================================================
+
 router.post("/:id/comment", async (req, res) => {
   try {
     const decoded = verifyToken(req);
@@ -146,9 +137,7 @@ router.post("/:id/comment", async (req, res) => {
   }
 });
 
-// ==========================================================
-// 5. DELETE A STATUS POST
-// ==========================================================
+
 router.delete("/:id", async (req, res) => {
   try {
     const decoded = verifyToken(req);
@@ -159,7 +148,6 @@ router.delete("/:id", async (req, res) => {
       return res.status(404).json({ error: "Status not found" });
     }
 
-    // Check if the post belongs to the user attempting to delete it
     if (post.user.toString() !== targetUserId.toString()) {
       return res.status(403).json({ error: "Unauthorized to delete this status" });
     }
