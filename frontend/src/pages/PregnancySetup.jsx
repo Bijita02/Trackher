@@ -104,7 +104,7 @@ function PregnancySetup() {
       });
 
       if (!res.ok) throw new Error("Failed to save pregnancy info");
-
+         window.dispatchEvent(new Event("pregnancy:updated"));   
       navigate("/pregnancy-dashboard", { replace: true });
     } catch (err) {
       console.error(err);

@@ -15,6 +15,7 @@ const BRAND = {
   border: "#EFE2E8",
 };
 const PREGNANCY_ROUTES = ["/pregnancy-dashboard", "/pregnancy-setup", "/pregnancy-calendar", "/weight-tracker", "/cravings"];
+const PREGNANCY_BELL_ROUTES = ["/pregnancy-dashboard", "/pregnancy-calendar", "/weight-tracker", "/cravings"];
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -33,8 +34,8 @@ const Navbar = () => {
   const location = useLocation();
 
   const isOnPregnancySection = PREGNANCY_ROUTES.some((r) => location.pathname.startsWith(r));
-  const showPregnancyBell = hasPregnancyTracking && isOnPregnancySection;
-
+const isOnPregnancyBellSection = PREGNANCY_BELL_ROUTES.some((r) => location.pathname.startsWith(r));
+const showPregnancyBell = hasPregnancyTracking && isOnPregnancyBellSection;
   useEffect(() => {
     setIsLoggedIn(!!localStorage.getItem("token"));
     setIsOpen(false);
@@ -199,7 +200,7 @@ const Navbar = () => {
   };
 
   const isActive = (path) => location.pathname === path;
-  const isHomeActive = () => location.pathname === "/" || location.pathname === "/dashboard";
+  const isHomeActive = () => location.pathname === "/" || location.pathname === "/dashboard" || isOnPregnancySection;
   const goToStats = () => navigate("/cycle-stats");
 
   const NavItem = ({ to, onClick, icon, label, active }) => {

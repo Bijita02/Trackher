@@ -178,7 +178,7 @@ router.put("/symptoms/:symptomId", auth, async (req, res) => {
           "cycleInfo.symptoms.$.intensity": intensity || 5,
         },
       },
-      { new: true }
+      { returnDocument: "after" }
     );
 
     res.json(user.cycleInfo.symptoms);
