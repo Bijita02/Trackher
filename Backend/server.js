@@ -363,6 +363,5 @@ app.use("/api/ai", AiChatRoute);
 app.use("/api/weight", weightRoute);
 app.use("/api/cravings", cravingsRoute);
 app.use("/api/pregnancy-reminders", pregnancyReminderRoute);
-stautu
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
