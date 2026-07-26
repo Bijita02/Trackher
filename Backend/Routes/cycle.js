@@ -141,7 +141,7 @@ router.put("/user-cycle/:entryId", auth, async (req, res) => {
           }),
         },
       },
-      { new: true }
+      { returnDocument: "after" }
     );
 
     if (!updated) {

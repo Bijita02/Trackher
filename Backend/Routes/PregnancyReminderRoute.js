@@ -39,7 +39,7 @@ router.put("/:id", verifyToken, async (req, res) => {
     const reminder = await PregnancyReminder.findOneAndUpdate(
       { _id: req.params.id, user: req.user.id },
       { date, title, note, time, type },
-      { new: true }
+     { returnDocument: "after" }
     );
     if (!reminder) return res.status(404).json({ error: "Reminder not found." });
     res.json(reminder);
