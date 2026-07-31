@@ -30,6 +30,9 @@ const Navbar = () => {
   const [dismissedPregnancyIds, setDismissedPregnancyIds] = useState(() => new Set());
   const [hasPregnancyTracking, setHasPregnancyTracking] = useState(false);
 
+  // user's name, just for the profile avatar initials
+  const [userName, setUserName] = useState("");
+
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -46,6 +49,7 @@ const showPregnancyBell = hasPregnancyTracking && isOnPregnancyBellSection;
   useEffect(() => {
     if (!isLoggedIn) {
       setNotifications([]);
+      setUserName("");
       return;
     }
 
@@ -69,6 +73,7 @@ const showPregnancyBell = hasPregnancyTracking && isOnPregnancyBellSection;
         let cycleNotifications = [];
         if (userRes.ok) {
           const data = await userRes.json();
+          if (!cancelled) setUserName(data?.name || "");
           const info = data?.cycleInfo;
           if (info?.lastPeriod) {
             const cycle = {
@@ -190,18 +195,18 @@ const showPregnancyBell = hasPregnancyTracking && isOnPregnancyBellSection;
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("userId");
-    setIsLoggedIn(false);
-    setNotifications([]);
-    setPregnancyNotifications([]);
-    navigate("/");
-  };
-
   const isActive = (path) => location.pathname === path;
   const isHomeActive = () => location.pathname === "/" || location.pathname === "/dashboard" || isOnPregnancySection;
   const goToStats = () => navigate("/cycle-stats");
+
+  // initials for the profile avatar, e.g. "Jane Doe" -> "JD"
+  const initials = (userName || "?")
+    .split(" ")
+    .filter(Boolean)
+    .map((p) => p[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 
   const NavItem = ({ to, onClick, icon, label, active }) => {
     const className = `group flex items-center h-10 rounded-full pl-2.5 transition-all duration-300 ease-out ${
@@ -461,23 +466,23 @@ const showPregnancyBell = hasPregnancyTracking && isOnPregnancyBellSection;
 
           <div className="w-px h-6 mx-3" style={{ background: BRAND.border }} />
 
-          {isLoggedIn ? (
-            <button
-              onClick={handleLogout}
-              className="h-10 px-5 rounded-full text-sm font-semibold transition-colors border-2"
-              style={{ color: BRAND.pink, borderColor: BRAND.pink, background: "transparent" }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = BRAND.pink;
-                e.currentTarget.style.color = "#fff";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "transparent";
-                e.currentTarget.style.color = BRAND.pink;
+          {isLoggedIn && (
+            <Link
+              to="/profile"
+              aria-label="Profile"
+              className={`flex items-center justify-center h-10 w-10 rounded-full text-xs font-semibold text-white transition-transform hover:scale-105 ${
+                isActive("/profile") ? "ring-2 ring-offset-2" : ""
+              }`}
+              style={{
+                background: `linear-gradient(135deg, ${BRAND.pink}, ${BRAND.pinkDark})`,
+                ...(isActive("/profile") ? { "--tw-ring-color": BRAND.pink } : {}),
               }}
             >
-              Log out
-            </button>
-          ) : (
+              {initials}
+            </Link>
+          )}
+
+          {!isLoggedIn && (
             <>
               <Link
                 to="/login"
@@ -537,6 +542,28 @@ const showPregnancyBell = hasPregnancyTracking && isOnPregnancyBellSection;
             </button>
           )}
 
+          {isLoggedIn && (
+            <Link
+              to="/profile"
+              className={`flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl ${
+                isActive("/profile") ? "bg-gradient-to-r from-[#E23670] to-[#C82D60] text-white shadow-[0_2px_10px_rgba(226,54,112,0.35)]" : "text-[#4A3E47] hover:bg-[#F6EEF1]"
+              }`}
+              onClick={() => setIsOpen(false)}
+            >
+              <span
+                className="flex items-center justify-center h-6 w-6 rounded-full text-[10px] font-semibold text-white shrink-0"
+                style={{
+                  background: isActive("/profile")
+                    ? "rgba(255,255,255,0.25)"
+                    : `linear-gradient(135deg, ${BRAND.pink}, ${BRAND.pinkDark})`,
+                }}
+              >
+                {initials}
+              </span>
+              Profile
+            </Link>
+          )}
+
           {isLoggedIn && !isOnPregnancySection && (
             <>
               <button
@@ -593,39 +620,26 @@ const showPregnancyBell = hasPregnancyTracking && isOnPregnancyBellSection;
             </>
           )}
 
-          <div className="mt-2 pt-3 border-t" style={{ borderColor: BRAND.border }}>
-            {isLoggedIn ? (
-              <button
-                onClick={() => {
-                  handleLogout();
-                  setIsOpen(false);
-                }}
-                className="block w-full text-center text-white text-sm font-semibold py-3 rounded-xl"
-                style={{ background: BRAND.pink }}
+          {!isLoggedIn && (
+            <div className="mt-2 pt-3 border-t space-y-2" style={{ borderColor: BRAND.border }}>
+              <Link
+                to="/login"
+                className="block px-4 py-3 text-sm font-medium rounded-xl text-center"
+                style={{ color: BRAND.text, background: "#F6EEF1" }}
+                onClick={() => setIsOpen(false)}
               >
-                Log out
-              </button>
-            ) : (
-              <div className="space-y-2">
-                <Link
-                  to="/login"
-                  className="block px-4 py-3 text-sm font-medium rounded-xl text-center"
-                  style={{ color: BRAND.text, background: "#F6EEF1" }}
-                  onClick={() => setIsOpen(false)}
-                >
-                  Log in
-                </Link>
-                <Link
-                  to="/register"
-                  className="block text-center text-white text-sm font-semibold py-3 rounded-xl"
-                  style={{ background: BRAND.pink }}
-                  onClick={() => setIsOpen(false)}
-                >
-                  Sign up
-                </Link>
-              </div>
-            )}
-          </div>
+                Log in
+              </Link>
+              <Link
+                to="/register"
+                className="block text-center text-white text-sm font-semibold py-3 rounded-xl"
+                style={{ background: BRAND.pink }}
+                onClick={() => setIsOpen(false)}
+              >
+                Sign up
+              </Link>
+            </div>
+          )}
         </div>
       )}
     </nav>

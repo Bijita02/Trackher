@@ -18,30 +18,75 @@ const auth = (req, res, next) => {
   }
 };
 
+// Computes an end date from a start date + period length when no
+// explicit end date is provided
+function computeEndDate(startDate, periodLength) {
+  const end = new Date(startDate);
+  end.setDate(end.getDate() + (periodLength || 5) - 1);
+  return end;
+}
+
+// After editing/deleting a history entry, recompute cycleInfo.lastPeriod
+// (and periodLength) from whatever the most recent remaining entry is,
+// so the "current" snapshot fields stay consistent with history
+async function syncLatestPeriod(userId) {
+  const user = await User.findById(userId);
+  if (!user) return null;
+
+  const sorted = [...user.cycleInfo.history].sort(
+    (a, b) => new Date(b.date) - new Date(a.date)
+  );
+  const latest = sorted[0];
+
+  user.cycleInfo.lastPeriod = latest ? latest.date : null;
+  if (latest?.periodLength) user.cycleInfo.periodLength = latest.periodLength;
+
+  await user.save();
+  return user;
+}
+
 // Saves cycle info: updates current snapshot fields individually
-// AND appends a full entry to history, instead of overwriting cycleInfo wholesale
+// AND appends a full entry (with computed/explicit end date) to history
 router.post("/user-cycle", auth, async (req, res) => {
   try {
-    const { lastPeriod, cycleLength, periodLength } = req.body;
+    const { lastPeriod, periodEnd, cycleLength, periodLength } = req.body;
 
     if (!lastPeriod) {
       return res.status(400).json({ error: "lastPeriod is required" });
     }
 
+    const targetUserId = req.user.id || req.user._id;
+    if (!targetUserId) {
+      return res.status(400).json({ error: "User ID missing from token payload" });
+    }
+
     const parsedCycleLength = cycleLength ? Number(cycleLength) : undefined;
     const parsedPeriodLength = periodLength ? Number(periodLength) : undefined;
 
+    const startDate = new Date(lastPeriod);
+    const endDate = periodEnd
+      ? new Date(periodEnd)
+      : computeEndDate(startDate, parsedPeriodLength);
+
+    if (Number.isNaN(startDate.getTime())) {
+      return res.status(400).json({ error: "Invalid lastPeriod date" });
+    }
+    if (Number.isNaN(endDate.getTime())) {
+      return res.status(400).json({ error: "Invalid periodEnd date" });
+    }
+
     const user = await User.findByIdAndUpdate(
-      req.user.id,
+      targetUserId,
       {
         $set: {
-          "cycleInfo.lastPeriod": new Date(lastPeriod),
+          "cycleInfo.lastPeriod": startDate,
           ...(parsedCycleLength && { "cycleInfo.cycleLength": parsedCycleLength }),
           ...(parsedPeriodLength && { "cycleInfo.periodLength": parsedPeriodLength }),
         },
         $push: {
           "cycleInfo.history": {
-            date: new Date(lastPeriod),
+            date: startDate,
+            endDate,
             cycleLength: parsedCycleLength,
             periodLength: parsedPeriodLength,
           },
@@ -58,9 +103,86 @@ router.post("/user-cycle", auth, async (req, res) => {
   }
 });
 
+// EDIT an existing logged period's start/end date
+router.put("/user-cycle/:entryId", auth, async (req, res) => {
+  try {
+    const { lastPeriod, periodEnd, periodLength } = req.body;
+    const targetUserId = req.user.id || req.user._id;
+
+    if (!lastPeriod) {
+      return res.status(400).json({ error: "lastPeriod is required" });
+    }
+
+    const startDate = new Date(lastPeriod);
+    if (Number.isNaN(startDate.getTime())) {
+      return res.status(400).json({ error: "Invalid lastPeriod date" });
+    }
+
+    const parsedPeriodLength = periodLength ? Number(periodLength) : undefined;
+    const endDate = periodEnd
+      ? new Date(periodEnd)
+      : computeEndDate(startDate, parsedPeriodLength);
+
+    if (Number.isNaN(endDate.getTime())) {
+      return res.status(400).json({ error: "Invalid periodEnd date" });
+    }
+    if (endDate < startDate) {
+      return res.status(400).json({ error: "End date can't be before start date" });
+    }
+
+    const updated = await User.findOneAndUpdate(
+      { _id: targetUserId, "cycleInfo.history._id": req.params.entryId },
+      {
+        $set: {
+          "cycleInfo.history.$.date": startDate,
+          "cycleInfo.history.$.endDate": endDate,
+          ...(parsedPeriodLength && {
+            "cycleInfo.history.$.periodLength": parsedPeriodLength,
+          }),
+        },
+      },
+      { returnDocument: "after" }
+    );
+
+    if (!updated) {
+      return res.status(404).json({ error: "Period entry not found" });
+    }
+
+    const synced = await syncLatestPeriod(targetUserId);
+    res.json(synced);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE a logged period entirely
+router.delete("/user-cycle/:entryId", auth, async (req, res) => {
+  try {
+    const targetUserId = req.user.id || req.user._id;
+
+    const exists = await User.findOne({
+      _id: targetUserId,
+      "cycleInfo.history._id": req.params.entryId,
+    });
+    if (!exists) {
+      return res.status(404).json({ error: "Period entry not found" });
+    }
+
+    await User.findByIdAndUpdate(targetUserId, {
+      $pull: { "cycleInfo.history": { _id: req.params.entryId } },
+    });
+
+    const synced = await syncLatestPeriod(targetUserId);
+    res.json(synced);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post("/pregnancy-info", auth, async (req, res) => {
   try {
     const { dueDate, lastPeriod } = req.body;
+    const targetUserId = req.user.id || req.user._id;
 
     let resolvedDueDate;
     if (dueDate) {
@@ -76,7 +198,7 @@ router.post("/pregnancy-info", auth, async (req, res) => {
     }
 
     const user = await User.findByIdAndUpdate(
-      req.user.id,
+      targetUserId,
       {
         pregnancyInfo: {
           dueDate: resolvedDueDate,
@@ -95,8 +217,9 @@ router.post("/pregnancy-info", auth, async (req, res) => {
 
 router.delete("/pregnancy-info", auth, async (req, res) => {
   try {
+    const targetUserId = req.user.id || req.user._id;
     const user = await User.findByIdAndUpdate(
-      req.user.id,
+      targetUserId,
       { $set: { pregnancyInfo: null } },
       { new: true }
     );
@@ -106,10 +229,10 @@ router.delete("/pregnancy-info", auth, async (req, res) => {
   }
 });
 
-// Gets user
+// Gets user profile
 router.get("/users/:id", auth, async (req, res) => {
   try {
-    const user = await User.findById(req.params.id);
+    const user = await User.findById(req.params.id).select("-password");
     if (!user) return res.status(404).json({ error: "User not found" });
     res.json(user);
   } catch (err) {
@@ -117,21 +240,79 @@ router.get("/users/:id", auth, async (req, res) => {
   }
 });
 
-// Log symptoms for a date
+// Updates user profile info (name, email, birthdate)
+router.put("/users/:id", auth, async (req, res) => {
+  try {
+    const targetUserId = req.user.id || req.user._id;
+
+    // Safety check: don't let a logged-in user edit someone else's
+    // profile just by changing the :id in the URL
+    if (String(targetUserId) !== String(req.params.id)) {
+      return res.status(403).json({ error: "Not authorized to edit this profile" });
+    }
+
+    const { name, email, birthdate } = req.body;
+
+    // Only touch fields that were actually sent
+    const update = {};
+    if (name !== undefined) update.name = name;
+    if (email !== undefined) update.email = email;
+    if (birthdate !== undefined) update.birthdate = birthdate ? new Date(birthdate) : null;
+
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ error: "No fields to update" });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      targetUserId,
+      { $set: update },
+      { new: true, runValidators: true }
+    ).select("-password");
+
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    res.json(user);
+  } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({ error: "That email is already in use" });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+/* ============================================================
+   ADD THIS ROUTE to your routes file, right after PUT /users/:id
+   ============================================================ */
+
+// DELETE account entirely
+router.delete("/users/:id", auth, async (req, res) => {
+  try {
+    const targetUserId = req.user.id || req.user._id;
+
+    if (String(targetUserId) !== String(req.params.id)) {
+      return res.status(403).json({ error: "Not authorized to delete this account" });
+    }
+
+    const deleted = await User.findByIdAndDelete(targetUserId);
+    if (!deleted) return res.status(404).json({ error: "User not found" });
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post("/symptoms", auth, async (req, res) => {
   try {
     const { date, tags, notes, intensity } = req.body;
+    const targetUserId = req.user.id || req.user._id;
 
-    if (!date) {
-      return res.status(400).json({ error: "Date is required" });
-    }
-
+    if (!date) return res.status(400).json({ error: "Date is required" });
     if (!Array.isArray(tags) || tags.length === 0) {
       return res.status(400).json({ error: "At least one symptom tag is required" });
     }
 
     const user = await User.findByIdAndUpdate(
-      req.user.id,
+      targetUserId,
       {
         $push: {
           "cycleInfo.symptoms": {
@@ -151,10 +332,10 @@ router.post("/symptoms", auth, async (req, res) => {
   }
 });
 
-// Get all logged symptoms for the user
 router.get("/symptoms", auth, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
+    const targetUserId = req.user.id || req.user._id;
+    const user = await User.findById(targetUserId);
     if (!user) return res.status(404).json({ error: "User not found" });
 
     const symptoms = user.cycleInfo?.symptoms || [];
@@ -166,14 +347,33 @@ router.get("/symptoms", auth, async (req, res) => {
   }
 });
 
-// Delete a specific symptom log by its MongoDB _id
 router.delete("/symptoms/:symptomId", auth, async (req, res) => {
   try {
+    const targetUserId = req.user.id || req.user._id;
     const user = await User.findByIdAndUpdate(
-      req.user.id,
+      targetUserId,
+      { $pull: { "cycleInfo.symptoms": { _id: req.params.symptomId } } },
+      { new: true }
+    );
+    res.json(user.cycleInfo.symptoms);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put("/symptoms/:symptomId", auth, async (req, res) => {
+  try {
+    const { date, tags, notes, intensity } = req.body;
+    const targetUserId = req.user.id || req.user._id;
+
+    const user = await User.findOneAndUpdate(
+      { _id: targetUserId, "cycleInfo.symptoms._id": req.params.symptomId },
       {
-        $pull: {
-          "cycleInfo.symptoms": { _id: req.params.symptomId },
+        $set: {
+          "cycleInfo.symptoms.$.date": new Date(date),
+          "cycleInfo.symptoms.$.tags": tags,
+          "cycleInfo.symptoms.$.notes": notes || "",
+          "cycleInfo.symptoms.$.intensity": intensity || 5,
         },
       },
       { new: true }
@@ -184,32 +384,5 @@ router.delete("/symptoms/:symptomId", auth, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
-// Update a specific symptom log by its MongoDB _id
-router.put("/symptoms/:symptomId", auth, async (req, res) => {
-  try {
-    const { date, tags, notes, intensity } = req.body;
-
-    const user = await User.findOneAndUpdate(
-      {
-        _id: req.user.id,
-        "cycleInfo.symptoms._id": req.params.symptomId,
-      },
-      {
-        $set: {
-          "cycleInfo.symptoms.$.date": new Date(date),
-          "cycleInfo.symptoms.$.tags": tags,
-          "cycleInfo.symptoms.$.notes": notes || "",
-          "cycleInfo.symptoms.$.intensity": intensity || 5,
-        },
-      },
-      { returnDocument: "after" }
-    );
-
-    res.json(user.cycleInfo.symptoms);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});                                                                                                                                     
 
 export default router;

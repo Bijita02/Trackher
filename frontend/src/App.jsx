@@ -17,6 +17,7 @@ import Weighttracker from "./pages/Weighttracker";
 import Cravings from "./pages/Cravings";
 import PregnancyCalendarPage from "./pages/PregnancyCalendarPage";
 import ForgotPassword from "./pages/ForgotPassword";
+import Profile from "./pages/Profile";
 function App() {
   return (
     <Router>
@@ -39,6 +40,7 @@ function App() {
           <Route path="/weight-tracker" element={<Weighttracker />} />
           <Route path="/cravings" element={<Cravings />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/profile" element={<Profile />} />
         </Routes>
       </div>
     </Router>
