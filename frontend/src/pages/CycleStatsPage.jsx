@@ -4,7 +4,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, BarChart, Bar, Cell,
 } from "recharts";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Calendar } from "lucide-react";
 import { MS_PER_DAY, stripTime } from "../utils/cycleMath";
 
 const BAR_COLORS = ["#E23670", "#EB5490", "#F281AB", "#F7A7C6", "#FBCADD"];
@@ -15,7 +15,7 @@ export default function CycleStatsPage() {
   const [currentCycleLength, setCurrentCycleLength] = useState(28);
   const [currentPeriodLength, setCurrentPeriodLength] = useState(5);
 
-  const [historyEntries, setHistoryEntries] = useState([]); // [{date, cycleLength, periodLength}]
+  const [historyEntries, setHistoryEntries] = useState([]); // [{date, endDate, cycleLength, periodLength}]
   const [symptomCounts, setSymptomCounts] = useState({ counts: {}, displayName: {} });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -58,6 +58,7 @@ export default function CycleStatsPage() {
       const cleaned = [...rawHistory, ...lastPeriodEntry]
         .map((h) => ({
           date: new Date(h.date),
+          endDate: h.endDate ? new Date(h.endDate) : null,
           cycleLength: h.cycleLength ? Number(h.cycleLength) : null,
           periodLength: h.periodLength ? Number(h.periodLength) : null,
         }))
@@ -201,6 +202,42 @@ export default function CycleStatsPage() {
 
   const hasRealSymptomData = symptomChartData.length > 0;
 
+  // Formats a logged history entry for the "Period history" list.
+  // historyEntries is already sorted most-recent-first (see fetchStats).
+  // We look up the matching computed cycle-length point (by start date) so
+  // each row can show "cycle length" the same way the trend chart does,
+  // instead of relying only on whatever was saved on the entry itself.
+  const formatFullDate = (d) =>
+    d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+
+  const cycleLengthByDayKey = useMemo(() => {
+    const map = new Map();
+    realCyclePoints.forEach((p, i) => {
+      map.set(stripTime(sortedDates[i]), p);
+    });
+    return map;
+  }, [realCyclePoints, sortedDates]);
+
+  const periodHistoryRows = useMemo(() => {
+    return historyEntries.map((h) => {
+      const point = cycleLengthByDayKey.get(stripTime(h.date));
+      // Prefer the length actually computed from the logged dates (same
+      // math as the trend chart above) over whatever was saved on the
+      // entry itself — a stored cycleLength can be stale (e.g. it was
+      // written from the user's cycleInfo.cycleLength setting at the time,
+      // not recalculated from the real gap to the next period).
+      const computedLength = point && !point.isOutlier ? point.length : null;
+      return {
+        key: stripTime(h.date),
+        startDate: h.date,
+        periodLength: h.periodLength,
+        cycleLength: computedLength ?? h.cycleLength ?? null,
+        isCurrent: point?.isCurrent ?? false,
+        isOutlier: point?.isOutlier ?? false,
+      };
+    });
+  }, [historyEntries, cycleLengthByDayKey]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -262,7 +299,7 @@ export default function CycleStatsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <div className="rounded-2xl p-6" style={{ background: "#fff", border: "1px solid #FDE3EC" }}>
           <h3 className="fr-display text-lg mb-1" style={{ color: "#241220" }}>Cycle length trend</h3>
           <p className="text-xs mb-4" style={{ color: "#8F8290" }}>
@@ -375,6 +412,56 @@ export default function CycleStatsPage() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Period history — every logged period, most recent first, shown by date */}
+      <div className="rounded-2xl p-6" style={{ background: "#fff", border: "1px solid #FDE3EC" }}>
+        <div className="flex items-center gap-2 mb-1">
+          <Calendar size={18} color="#E23670" />
+          <h3 className="fr-display text-lg" style={{ color: "#241220" }}>Period history</h3>
+        </div>
+        <p className="text-xs mb-4" style={{ color: "#8F8290" }}>
+          Every period you've logged, most recent first
+        </p>
+
+        {periodHistoryRows.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm" style={{ borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid #FDE3EC" }}>
+                  <th className="text-left py-2 pr-4 font-medium" style={{ color: "#8F8290" }}>Start date</th>
+                  <th className="text-left py-2 pr-4 font-medium" style={{ color: "#8F8290" }}>Period length</th>
+                  <th className="text-left py-2 font-medium" style={{ color: "#8F8290" }}>Cycle length</th>
+                </tr>
+              </thead>
+              <tbody>
+                {periodHistoryRows.map((row) => (
+                  <tr key={row.key} style={{ borderBottom: "1px solid #FBE7EF" }}>
+                    <td className="py-2 pr-4" style={{ color: "#241220", fontWeight: 500 }}>
+                      {formatFullDate(row.startDate)}
+                    </td>
+                    <td className="py-2 pr-4" style={{ color: "#8F8290" }}>
+                      {row.periodLength ? `${row.periodLength} days` : "—"}
+                    </td>
+                    <td className="py-2" style={{ color: row.isOutlier ? "#E23670" : "#8F8290" }}>
+                      {row.isOutlier
+                        ? "Looks off"
+                        : row.isCurrent
+                        ? `Day ${row.cycleLength} (ongoing)`
+                        : row.cycleLength
+                        ? `${row.cycleLength} days`
+                        : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-sm" style={{ color: "#B7A8B1" }}>
+            No periods logged yet — once you log one, it'll show up here.
+          </p>
+        )}
       </div>
     </div>
   );
