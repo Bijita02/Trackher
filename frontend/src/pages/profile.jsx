@@ -26,14 +26,6 @@ const BRAND = {
   border: "#FDE3EC",
 };
 
-// Same logic as CycleStatsPage's realCyclePoints/getAverageCycleLength —
-// merges cycleInfo.history with cycleInfo.lastPeriod (in case an initial
-// period was set during onboarding and never pushed into history),
-// dedupes by day, sorts ascending, then averages the gaps between
-// consecutive dates. The most recent date is a cycle still in progress,
-// so it's excluded from the average the same way CycleStatsPage excludes
-// it. Gaps over 90 days are treated as a mistyped date and dropped so one
-// bad entry can't skew the average.
 const OUTLIER_MAX_GAP = 90;
 
 function getAverageCycleLength(user) {
@@ -66,9 +58,7 @@ function getAverageCycleLength(user) {
   return Math.round(lengths.reduce((a, b) => a + b, 0) / lengths.length);
 }
 
-// Same logic as CycleStatsPage.getAveragePeriodLength() — average of every
-// logged period's periodLength, falling back to the current cycleInfo
-// setting if nothing's been logged yet
+
 function getAveragePeriodLength(user) {
   const lengths = (user?.cycleInfo?.history || [])
     .map((h) => h.periodLength)
@@ -267,7 +257,7 @@ function Profile() {
           </div>
         )}
 
-        {/* Identity card */}
+       
         <div className="rounded-2xl p-6 mb-6 bg-white" style={{ border: `1px solid ${BRAND.border}` }}>
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-4">
@@ -364,21 +354,16 @@ function Profile() {
           )}
         </div>
 
-        {/* Quick stats */}
-        <div className="grid grid-cols-2 gap-3 mb-6">
+
+        <div className="grid grid-cols-1 gap-3 mb-6">
           <StatCard
             icon={<CalendarClock size={16} style={{ color: BRAND.pink }} />}
             value={periodsLogged}
             label={periodsLogged === 1 ? "Period logged" : "Periods logged"}
           />
-          <StatCard
-            icon={<ClipboardList size={16} style={{ color: BRAND.pink }} />}
-            value={symptomsLogged}
-            label={symptomsLogged === 1 ? "Symptom logged" : "Symptoms logged"}
-          />
+         
         </div>
 
-        {/* Cycle settings summary (read-only here — edited via the onboarding modal / calendar) */}
         {user?.cycleInfo?.lastPeriod && (
           <div className="rounded-2xl p-6 mb-6 bg-white" style={{ border: `1px solid ${BRAND.border}` }}>
             <div className="flex items-center gap-2 mb-4">
@@ -408,7 +393,6 @@ function Profile() {
           </div>
         )}
 
-        {/* Pregnancy status, if applicable */}
         {user?.pregnancyInfo?.dueDate && (
           <div className="rounded-2xl p-6 mb-6 bg-white" style={{ border: `1px solid ${BRAND.border}` }}>
             <div className="flex items-center gap-2 mb-2">
@@ -426,7 +410,7 @@ function Profile() {
           </div>
         )}
 
-        {/* Logout */}
+        
         <button
           onClick={handleLogout}
           className="w-full flex items-center justify-center gap-2 text-sm font-medium py-3 rounded-xl transition mb-3"
@@ -435,7 +419,6 @@ function Profile() {
           <LogOut size={15} /> Log out
         </button>
 
-        {/* Danger zone */}
         <div className="rounded-2xl p-5 mb-8" style={{ background: "#FFF5F5", border: "1px solid #FBD5D5" }}>
           <p className="text-xs font-semibold mb-1" style={{ color: "#C0392B" }}>Danger zone</p>
           <p className="text-xs mb-3" style={{ color: "#A85B5B" }}>

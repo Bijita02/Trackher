@@ -17,18 +17,11 @@ const auth = (req, res, next) => {
     res.status(401).json({ error: "Invalid token" });
   }
 };
-
-// Computes an end date from a start date + period length when no
-// explicit end date is provided
 function computeEndDate(startDate, periodLength) {
   const end = new Date(startDate);
   end.setDate(end.getDate() + (periodLength || 5) - 1);
   return end;
 }
-
-// After editing/deleting a history entry, recompute cycleInfo.lastPeriod
-// (and periodLength) from whatever the most recent remaining entry is,
-// so the "current" snapshot fields stay consistent with history
 async function syncLatestPeriod(userId) {
   const user = await User.findById(userId);
   if (!user) return null;
@@ -45,8 +38,6 @@ async function syncLatestPeriod(userId) {
   return user;
 }
 
-// Saves cycle info: updates current snapshot fields individually
-// AND appends a full entry (with computed/explicit end date) to history
 router.post("/user-cycle", auth, async (req, res) => {
   try {
     const { lastPeriod, periodEnd, cycleLength, periodLength } = req.body;
@@ -103,7 +94,6 @@ router.post("/user-cycle", auth, async (req, res) => {
   }
 });
 
-// EDIT an existing logged period's start/end date
 router.put("/user-cycle/:entryId", auth, async (req, res) => {
   try {
     const { lastPeriod, periodEnd, periodLength } = req.body;
@@ -154,8 +144,6 @@ router.put("/user-cycle/:entryId", auth, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
-// DELETE a logged period entirely
 router.delete("/user-cycle/:entryId", auth, async (req, res) => {
   try {
     const targetUserId = req.user.id || req.user._id;

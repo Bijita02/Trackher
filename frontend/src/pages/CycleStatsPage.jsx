@@ -15,7 +15,7 @@ export default function CycleStatsPage() {
   const [currentCycleLength, setCurrentCycleLength] = useState(28);
   const [currentPeriodLength, setCurrentPeriodLength] = useState(5);
 
-  const [historyEntries, setHistoryEntries] = useState([]); // [{date, endDate, cycleLength, periodLength}]
+  const [historyEntries, setHistoryEntries] = useState([]); 
   const [symptomCounts, setSymptomCounts] = useState({ counts: {}, displayName: {} });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -34,8 +34,6 @@ export default function CycleStatsPage() {
         setLoading(false);
         return;
       }
-
-      // Cycle length / period length / period-start history come from the user record
       const userRes = await fetch(`http://localhost:5000/api/users/${userId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -44,12 +42,6 @@ export default function CycleStatsPage() {
 
       if (userData.cycleInfo?.cycleLength) setCurrentCycleLength(Number(userData.cycleInfo.cycleLength));
       if (userData.cycleInfo?.periodLength) setCurrentPeriodLength(Number(userData.cycleInfo.periodLength));
-
-      // cycleInfo.lastPeriod may hold an initial period date that was never
-      // pushed into cycleInfo.history (e.g. set during onboarding, before
-      // this record went through the /user-cycle $push flow). Merge it in
-      // as its own entry so it still shows up in the trend, same as the
-      // calendar page already does when building periodStarts.
       const rawHistory = userData.cycleInfo?.history || [];
       const lastPeriodEntry = userData.cycleInfo?.lastPeriod
         ? [{ date: userData.cycleInfo.lastPeriod, cycleLength: null, periodLength: null }]
@@ -72,20 +64,15 @@ export default function CycleStatsPage() {
         .sort((a, b) => b.date - a.date);
 
       setHistoryEntries(cleaned);
-
-      // Symptoms come from the real /api/symptoms endpoint (Symptom collection).
-      // This is wrapped in its own try/catch so a symptoms-fetch failure
-      // never sends the whole page to the error screen — it just shows
-      // "No symptoms logged yet" instead.
       try {
         const symptomsRes = await fetch(`http://localhost:5000/api/symptoms`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!symptomsRes.ok) throw new Error("Failed to fetch symptom data");
-        const symptomLogs = await symptomsRes.json(); // array of { tags, date, intensity, notes, ... }
+        const symptomLogs = await symptomsRes.json(); 
 
         const counts = {};
-        const displayName = {}; // normalized key -> first-seen original casing/spacing
+        const displayName = {}; 
 
         symptomLogs.forEach((entry) => {
           (entry.tags || []).forEach((tag) => {
@@ -99,7 +86,7 @@ export default function CycleStatsPage() {
         setSymptomCounts({ counts, displayName });
       } catch (symptomErr) {
         console.error("Error fetching symptoms:", symptomErr);
-        setSymptomCounts({ counts: {}, displayName: {} }); // falls back to "No symptoms logged yet"
+        setSymptomCounts({ counts: {}, displayName: {} }); 
       }
 
     } catch (err) {
@@ -109,23 +96,6 @@ export default function CycleStatsPage() {
       setLoading(false);
     }
   };
-
-  // The trend chart plots CYCLE LENGTHS — the gap between two consecutive
-  // logged period-start dates. Each length is attributed to the date the
-  // cycle STARTED, so "May 4" shows the length of the cycle that began on
-  // May 4th and ran until the next logged period.
-  //
-  // The most recent logged date is different: that cycle is still running
-  // today, so instead of no value at all, it gets "days elapsed so far"
-  // (today − that date) — real, useful info, but explicitly not a finished
-  // cycle length. It's kept in a separate series (currentLength) so it can
-  // be drawn as a dashed, visually distinct segment rather than looking
-  // like a completed cycle.
-  //
-  // Gaps beyond OUTLIER_MAX_GAP days are almost never a real cycle — far
-  // more likely a mistyped date (e.g. wrong year). Those are flagged and
-  // excluded from the plotted line/scale so one bad entry doesn't crush
-  // the Y axis and hide every real point.
   const OUTLIER_MAX_GAP = 90;
 
   const sortedDates = useMemo(
@@ -140,12 +110,7 @@ export default function CycleStatsPage() {
 
     return sortedDates.map((date, i) => {
       const label = date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-
-      // last logged date = current cycle, still in progress
       if (i === sortedDates.length - 1) {
-        // +1 so the start date itself is "day 1", matching dayInCycle()'s
-        // convention elsewhere in the app (mod + 1) — a plain date diff
-        // would call the start date "day 0", which is off by one.
         const daysSoFar = Math.round((stripTime(today) - stripTime(date)) / MS_PER_DAY) + 1;
         return { label, length: daysSoFar, isOutlier: false, isCurrent: true, rawDiff: null };
       }
@@ -159,10 +124,14 @@ export default function CycleStatsPage() {
   const outlierPoints = realCyclePoints.filter((p) => p.isOutlier);
 
   const getAverageCycleLength = () => {
-    const lengths = realCyclePoints.map((p) => p.length).filter((v) => v !== null);
-    if (lengths.length === 0) return currentCycleLength;
-    return Math.round(lengths.reduce((a, b) => a + b, 0) / lengths.length);
-  };
+  const lengths = realCyclePoints
+    .filter((p) => !p.isCurrent && !p.isOutlier)
+    .map((p) => p.length)
+    .filter((v) => v !== null);
+
+  if (lengths.length === 0) return currentCycleLength;
+  return Math.round(lengths.reduce((a, b) => a + b, 0) / lengths.length);
+};
 
   const getAveragePeriodLength = () => {
     const lengths = historyEntries
@@ -182,9 +151,6 @@ export default function CycleStatsPage() {
       return {
         ...p,
         completedLength: !p.isCurrent && !p.isOutlier ? p.length : null,
-        // bridge point: the point right before "current" also carries its
-        // own value on the dashed series so the dashed line has somewhere
-        // to start from, instead of jumping in from nowhere
         currentLength: p.isCurrent ? p.length : nextIsCurrent && !p.isOutlier ? p.length : null,
       };
     });
@@ -201,12 +167,6 @@ export default function CycleStatsPage() {
   }, [symptomCounts]);
 
   const hasRealSymptomData = symptomChartData.length > 0;
-
-  // Formats a logged history entry for the "Period history" list.
-  // historyEntries is already sorted most-recent-first (see fetchStats).
-  // We look up the matching computed cycle-length point (by start date) so
-  // each row can show "cycle length" the same way the trend chart does,
-  // instead of relying only on whatever was saved on the entry itself.
   const formatFullDate = (d) =>
     d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 
@@ -221,11 +181,6 @@ export default function CycleStatsPage() {
   const periodHistoryRows = useMemo(() => {
     return historyEntries.map((h) => {
       const point = cycleLengthByDayKey.get(stripTime(h.date));
-      // Prefer the length actually computed from the logged dates (same
-      // math as the trend chart above) over whatever was saved on the
-      // entry itself — a stored cycleLength can be stale (e.g. it was
-      // written from the user's cycleInfo.cycleLength setting at the time,
-      // not recalculated from the real gap to the next period).
       const computedLength = point && !point.isOutlier ? point.length : null;
       return {
         key: stripTime(h.date),
