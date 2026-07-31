@@ -29,8 +29,6 @@ const Navbar = () => {
   const [pregnancyNotifications, setPregnancyNotifications] = useState([]);
   const [dismissedPregnancyIds, setDismissedPregnancyIds] = useState(() => new Set());
   const [hasPregnancyTracking, setHasPregnancyTracking] = useState(false);
-
-  // user's name, just for the profile avatar initials
   const [userName, setUserName] = useState("");
 
   const navigate = useNavigate();
@@ -111,7 +109,6 @@ const showPregnancyBell = hasPregnancyTracking && isOnPregnancyBellSection;
     };
   }, [isLoggedIn]);
 
-  // Pregnancy notifications — separate source, separate bell
   useEffect(() => {
     if (!isLoggedIn) {
       setPregnancyNotifications([]);
@@ -198,8 +195,6 @@ const showPregnancyBell = hasPregnancyTracking && isOnPregnancyBellSection;
   const isActive = (path) => location.pathname === path;
   const isHomeActive = () => location.pathname === "/" || location.pathname === "/dashboard" || isOnPregnancySection;
   const goToStats = () => navigate("/cycle-stats");
-
-  // initials for the profile avatar, e.g. "Jane Doe" -> "JD"
   const initials = (userName || "?")
     .split(" ")
     .filter(Boolean)

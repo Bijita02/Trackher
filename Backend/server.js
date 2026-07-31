@@ -59,17 +59,11 @@ function verifyToken(req) {
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const TOTAL_PREGNANCY_DAYS = 280;
 
-// Computes an end date from a start date + period length when no
-// explicit end date is provided
 function computeEndDate(startDate, periodLength) {
   const end = new Date(startDate);
   end.setDate(end.getDate() + (periodLength || 5) - 1);
   return end;
 }
-
-// After editing/deleting a history entry, recompute cycleInfo.lastPeriod
-// (and periodLength) from whatever the most recent remaining entry is,
-// so the "current" snapshot fields stay consistent with history
 async function syncLatestPeriod(userId) {
   const user = await User.findById(userId);
   if (!user) return null;
@@ -144,10 +138,6 @@ app.post("/api/login", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
-// POST /api/reset-password
-// Directly updates a user's password given their email — no token or
-// email verification step. Simple by design for now.
 app.post("/api/reset-password", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -234,8 +224,6 @@ app.post("/api/user-cycle", async (req, res) => {
     res.status(err.status || 500).json({ error: err.message });
   }
 });
-
-// EDIT an existing logged period's start/end date
 app.put("/api/user-cycle/:entryId", async (req, res) => {
   try {
     const decoded = verifyToken(req);
@@ -287,7 +275,6 @@ app.put("/api/user-cycle/:entryId", async (req, res) => {
   }
 });
 
-// DELETE a logged period entirely
 app.delete("/api/user-cycle/:entryId", async (req, res) => {
   try {
     const decoded = verifyToken(req);
@@ -378,6 +365,59 @@ app.get("/api/users/:id", async (req, res) => {
   }
 });
 
+app.put("/api/users/:id", async (req, res) => {
+  try {
+    const decoded = verifyToken(req);
+    const targetUserId = decoded.id || decoded._id;
+
+    if (String(targetUserId) !== String(req.params.id)) {
+      return res.status(403).json({ error: "Not authorized to edit this profile" });
+    }
+
+    const { name, email, birthdate } = req.body;
+
+    const update = {};
+    if (name !== undefined) update.name = name;
+    if (email !== undefined) update.email = email;
+    if (birthdate !== undefined) update.birthdate = birthdate ? new Date(birthdate) : null;
+
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ error: "No fields to update" });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      targetUserId,
+      { $set: update },
+      { returnDocument: "after", runValidators: true }
+    ).select("-password");
+
+    if (!user) return res.status(404).json({ error: "User not found" });
+    res.json(user);
+  } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({ error: "That email is already in use" });
+    }
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/users/:id", async (req, res) => {
+  try {
+    const decoded = verifyToken(req);
+    const targetUserId = decoded.id || decoded._id;
+
+    if (String(targetUserId) !== String(req.params.id)) {
+      return res.status(403).json({ error: "Not authorized to delete this account" });
+    }
+
+    const deleted = await User.findByIdAndDelete(targetUserId);
+    if (!deleted) return res.status(404).json({ error: "User not found" });
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
 app.use('/api/status', statusRoutes);
 app.use("/api/symptoms", symptomsRoute);
 app.use("/api/ai", AiChatRoute);

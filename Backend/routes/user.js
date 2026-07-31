@@ -18,7 +18,6 @@ const auth = (req, res, next) => {
   }
 };
 
-// Saves cycle info
 router.post("/user-cycle", auth, async (req, res) => {
   try {
     const { lastPeriod, cycleLength, periodLength } = req.body;
@@ -81,7 +80,6 @@ router.delete("/pregnancy-info", auth, async (req, res) => {
   }
 });
 
-// Gets user
 router.get("/users/:id", auth, async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
@@ -91,7 +89,6 @@ router.get("/users/:id", auth, async (req, res) => {
   }
 });
 
-// Log symptoms for a date
 router.post("/symptoms", auth, async (req, res) => {
   try {
     const { date, tags, notes, intensity } = req.body;
@@ -125,7 +122,6 @@ router.post("/symptoms", auth, async (req, res) => {
   }
 });
 
-// Get all logged symptoms for the user
 router.get("/symptoms", auth, async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
@@ -141,7 +137,6 @@ router.get("/symptoms", auth, async (req, res) => {
   }
 });
 
-// Delete a specific symptom log by its MongoDB _id
 router.delete("/symptoms/:symptomId", auth, async (req, res) => {
   try {
     const user = await User.findByIdAndUpdate(
@@ -160,7 +155,6 @@ router.delete("/symptoms/:symptomId", auth, async (req, res) => {
   }
 });
 
-// Update a specific symptom log by its MongoDB _id
 router.put("/symptoms/:symptomId", auth, async (req, res) => {
   try {
     const { date, tags, notes, intensity } = req.body;

@@ -18,17 +18,12 @@ const auth = (req, res, next) => {
   }
 };
 
-// Computes an end date from a start date + period length when no
-// explicit end date is provided
 function computeEndDate(startDate, periodLength) {
   const end = new Date(startDate);
   end.setDate(end.getDate() + (periodLength || 5) - 1);
   return end;
 }
 
-// After editing/deleting a history entry, recompute cycleInfo.lastPeriod
-// (and periodLength) from whatever the most recent remaining entry is,
-// so the "current" snapshot fields stay consistent with history
 async function syncLatestPeriod(userId) {
   const user = await User.findById(userId);
   if (!user) return null;
@@ -45,8 +40,6 @@ async function syncLatestPeriod(userId) {
   return user;
 }
 
-// Saves cycle info: updates current snapshot fields individually
-// AND appends a full entry (with computed/explicit end date) to history
 router.post("/user-cycle", auth, async (req, res) => {
   try {
     const { lastPeriod, periodEnd, cycleLength, periodLength } = req.body;
@@ -103,7 +96,6 @@ router.post("/user-cycle", auth, async (req, res) => {
   }
 });
 
-// EDIT an existing logged period's start/end date
 router.put("/user-cycle/:entryId", auth, async (req, res) => {
   try {
     const { lastPeriod, periodEnd, periodLength } = req.body;
@@ -155,7 +147,6 @@ router.put("/user-cycle/:entryId", auth, async (req, res) => {
   }
 });
 
-// DELETE a logged period entirely
 router.delete("/user-cycle/:entryId", auth, async (req, res) => {
   try {
     const targetUserId = req.user.id || req.user._id;
@@ -229,7 +220,6 @@ router.delete("/pregnancy-info", auth, async (req, res) => {
   }
 });
 
-// Gets user profile
 router.get("/users/:id", auth, async (req, res) => {
   try {
     const user = await User.findById(req.params.id).select("-password");
@@ -240,20 +230,16 @@ router.get("/users/:id", auth, async (req, res) => {
   }
 });
 
-// Updates user profile info (name, email, birthdate)
 router.put("/users/:id", auth, async (req, res) => {
   try {
     const targetUserId = req.user.id || req.user._id;
 
-    // Safety check: don't let a logged-in user edit someone else's
-    // profile just by changing the :id in the URL
     if (String(targetUserId) !== String(req.params.id)) {
       return res.status(403).json({ error: "Not authorized to edit this profile" });
     }
 
     const { name, email, birthdate } = req.body;
 
-    // Only touch fields that were actually sent
     const update = {};
     if (name !== undefined) update.name = name;
     if (email !== undefined) update.email = email;
@@ -279,11 +265,7 @@ router.put("/users/:id", auth, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-/* ============================================================
-   ADD THIS ROUTE to your routes file, right after PUT /users/:id
-   ============================================================ */
 
-// DELETE account entirely
 router.delete("/users/:id", auth, async (req, res) => {
   try {
     const targetUserId = req.user.id || req.user._id;
