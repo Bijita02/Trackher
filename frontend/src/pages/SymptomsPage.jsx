@@ -1,113 +1,241 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  Zap,
+  CloudLightning,
+  RotateCw,
+  RotateCcw,
+  CircleDot,
+  Thermometer,
+  Bone,
+  Dumbbell,
+  Heart,
+  Plus,
+  Snowflake,
+  Circle,
+  CircleSlash,
+  Droplet,
+  Droplets,
+  Frown,
+  Flame,
+  Wind,
+  Utensils,
+  Cookie,
+  Sun,
+  ArrowDown,
+  ArrowUpRight,
+  AlertCircle,
+  AlertTriangle,
+  Moon,
+  Meh,
+  Angry,
+  BatteryLow,
+  BatteryFull,
+  Waves,
+  CloudRain,
+  Smile,
+  Bed,
+  Egg,
+  Leaf,
+  Milk,
+  CloudDrizzle,
+  Microscope,
+  Brain,
+  Bandage,
+  Activity,
+  Calendar,
+  Star,
+  BookOpen,
+  Save,
+  Pencil,
+  Tag as TagIcon,
+} from "lucide-react";
 
+// Symptom groups — icons live in TAG_ICON / GROUP_ICON below, so this stays
+// plain data instead of mixing emoji into the content.
 const SYMPTOM_GROUPS = [
   {
     label: "Head",
-    emoji: "🤕",
-    tags: [
-      { name: "Headache", emoji: "🔨" },
-      { name: "Migraines", emoji: "💢" },
-      { name: "Dizziness", emoji: "🌀" },
-      { name: "Acne", emoji: "🔴" },
-      { name: "Hectic fever", emoji: "🌶️" },
-    ],
+    tags: ["Headache", "Migraines", "Dizziness", "Acne", "Hectic fever"],
   },
   {
     label: "Body",
-    emoji: "💪",
     tags: [
-      { name: "Neck aches", emoji: "🦴" },
-      { name: "Shoulder aches", emoji: "💪" },
-      { name: "Tender breasts", emoji: "🎗️" },
-      { name: "Breast sensitivity", emoji: "➕" },
-      { name: "Backaches", emoji: "🌸" },
-      { name: "Lower back pain", emoji: "🦴" },
-      { name: "Body aches", emoji: "🔴" },
-      { name: "Muscle pain", emoji: "🥩" },
-      { name: "Influenza", emoji: "🤒" },
-      { name: "Illness", emoji: "➕" },
-      { name: "Cramps", emoji: "⚡" },
-      { name: "Chills", emoji: "❄️" },
+      "Neck aches",
+      "Shoulder aches",
+      "Tender breasts",
+      "Breast sensitivity",
+      "Backaches",
+      "Lower back pain",
+      "Body aches",
+      "Muscle pain",
+      "Influenza",
+      "Illness",
+      "Cramps",
+      "Chills",
     ],
   },
   {
     label: "Abdomen",
-    emoji: "🍑",
     tags: [
-      { name: "Bloating", emoji: "🎈" },
-      { name: "Constipation", emoji: "💩" },
-      { name: "Diarrhea", emoji: "🧻" },
-      { name: "Nausea", emoji: "🤢" },
-      { name: "Abdominal cramps", emoji: "⚡" },
-      { name: "Dyspepsia", emoji: "🌶️" },
-      { name: "Gas", emoji: "💨" },
-      { name: "Hunger", emoji: "🍗" },
-      { name: "Cravings", emoji: "🍫" },
-      { name: "Ovulation pain", emoji: "☀️" },
-      { name: "Pelvic pressure", emoji: "⬇️" },
+      "Bloating",
+      "Constipation",
+      "Diarrhea",
+      "Nausea",
+      "Abdominal cramps",
+      "Dyspepsia",
+      "Gas",
+      "Hunger",
+      "Cravings",
+      "Ovulation pain",
+      "Pelvic pressure",
     ],
   },
   {
     label: "Mental",
-    emoji: "🧠",
     tags: [
-      { name: "Anxious", emoji: "😰" },
-      { name: "Insomnia", emoji: "🌙" },
-      { name: "Stress", emoji: "🏋️" },
-      { name: "Moodiness", emoji: "😐" },
-      { name: "Tension", emoji: "⚠️" },
-      { name: "Irritable", emoji: "😤" },
-      { name: "Unable to concentrate", emoji: "🔄" },
-      { name: "Fatigue", emoji: "🥱" },
-      { name: "Low mood", emoji: "😔" },
-      { name: "Mood swings", emoji: "🎢" },
-      { name: "Crying spells", emoji: "😭" },
-      { name: "Calm", emoji: "😌" },
-      { name: "Oversleeping", emoji: "🛌" },
-      { name: "Low energy", emoji: "🔋" },
-      { name: "High energy", emoji: "⚡" },
+      "Anxious",
+      "Insomnia",
+      "Stress",
+      "Moodiness",
+      "Tension",
+      "Irritable",
+      "Unable to concentrate",
+      "Fatigue",
+      "Low mood",
+      "Mood swings",
+      "Crying spells",
+      "Calm",
+      "Oversleeping",
+      "Low energy",
+      "High energy",
     ],
   },
   {
     label: "Cervix",
-    emoji: "🔬",
     tags: [
-      { name: "Pelvic pain", emoji: "🤕" },
-      { name: "Cervical firmness", emoji: "🪨" },
-      { name: "Cervical opening", emoji: "↗️" },
-      { name: "Cervical mucus", emoji: "🟢" },
-      { name: "Flow", emoji: "🩸" },
-      { name: "Heavy flow", emoji: "🩸" },
-      { name: "Light flow", emoji: "💧" },
-      { name: "Spotting", emoji: "🔴" },
-      { name: "Irritation", emoji: "🌾" },
+      "Pelvic pain",
+      "Cervical firmness",
+      "Cervical opening",
+      "Cervical mucus",
+      "Flow",
+      "Heavy flow",
+      "Light flow",
+      "Spotting",
+      "Irritation",
     ],
   },
   {
     label: "Fluid",
-    emoji: "💧",
     tags: [
-      { name: "Dry", emoji: "🏜️" },
-      { name: "Sticky", emoji: "🦴" },
-      { name: "Creamy", emoji: "🥛" },
-      { name: "Watery", emoji: "🌊" },
-      { name: "Egg-white", emoji: "🥚" },
-      { name: "Cottage-cheese", emoji: "🧀" },
-      { name: "Green", emoji: "🟢" },
-      { name: "With blood", emoji: "🩸" },
-      { name: "Foul-smelling", emoji: "👃" },
+      "Dry",
+      "Sticky",
+      "Creamy",
+      "Watery",
+      "Egg-white",
+      "Cottage-cheese",
+      "Green",
+      "With blood",
+      "Foul-smelling",
     ],
   },
 ];
 
-const TAG_EMOJI = Object.fromEntries(
-  SYMPTOM_GROUPS.flatMap((g) => g.tags.map((t) => [t.name, t.emoji]))
-);
+// One line-icon per group heading — replaces the old group emoji.
+const GROUP_ICON = {
+  Head: Bandage,
+  Body: Activity,
+  Abdomen: Utensils,
+  Mental: Brain,
+  Cervix: Microscope,
+  Fluid: Droplet,
+};
 
-const INTENSITY_EMOJI = ["🙂", "🙂", "😐", "😐", "😕", "😕", "😣", "😣", "😖", "😫"];
+// One line-icon per tag — replaces the old TAG_EMOJI map. Any tag not
+// listed here (e.g. a user's custom symptom) falls back to a plain tag icon.
+const TAG_ICON = {
+  Headache: Zap,
+  Migraines: CloudLightning,
+  Dizziness: RotateCw,
+  Acne: CircleDot,
+  "Hectic fever": Thermometer,
+
+  "Neck aches": Bone,
+  "Shoulder aches": Dumbbell,
+  "Tender breasts": Heart,
+  "Breast sensitivity": Plus,
+  Backaches: Bone,
+  "Lower back pain": Bone,
+  "Body aches": Activity,
+  "Muscle pain": Dumbbell,
+  Influenza: Thermometer,
+  Illness: Plus,
+  Cramps: Zap,
+  Chills: Snowflake,
+
+  Bloating: Circle,
+  Constipation: CircleSlash,
+  Diarrhea: Droplets,
+  Nausea: Frown,
+  "Abdominal cramps": Zap,
+  Dyspepsia: Flame,
+  Gas: Wind,
+  Hunger: Utensils,
+  Cravings: Cookie,
+  "Ovulation pain": Sun,
+  "Pelvic pressure": ArrowDown,
+
+  Anxious: AlertCircle,
+  Insomnia: Moon,
+  Stress: Activity,
+  Moodiness: Meh,
+  Tension: AlertTriangle,
+  Irritable: Angry,
+  "Unable to concentrate": RotateCcw,
+  Fatigue: BatteryLow,
+  "Low mood": Frown,
+  "Mood swings": Waves,
+  "Crying spells": CloudRain,
+  Calm: Smile,
+  Oversleeping: Bed,
+  "Low energy": BatteryLow,
+  "High energy": BatteryFull,
+
+  "Pelvic pain": AlertCircle,
+  "Cervical firmness": Circle,
+  "Cervical opening": ArrowUpRight,
+  "Cervical mucus": Droplet,
+  Flow: Droplet,
+  "Heavy flow": Droplets,
+  "Light flow": CloudDrizzle,
+  Spotting: CircleDot,
+  Irritation: Flame,
+
+  Dry: Sun,
+  Sticky: Droplet,
+  Creamy: Milk,
+  Watery: Waves,
+  "Egg-white": Egg,
+  "Cottage-cheese": Milk,
+  Green: Leaf,
+  "With blood": Droplet,
+  "Foul-smelling": Wind,
+};
 
 const UNDO_WINDOW_MS = 5000;
+
+// Simple 3-tier icon + color for intensity, replacing the old 10-emoji face
+// strip — a calmer, single-glyph read instead of a wall of tiny faces.
+function IntensityIcon({ value, size = 16 }) {
+  const Icon = value <= 3 ? Smile : value <= 6 ? Meh : Frown;
+  const color = value <= 3 ? "#4C9A72" : value <= 6 ? "#C08A2E" : "#D4537E";
+  return <Icon size={size} color={color} strokeWidth={1.75} />;
+}
+
+function TagChipIcon({ name, size = 13 }) {
+  const Icon = TAG_ICON[name] || TagIcon;
+  return <Icon size={size} strokeWidth={1.75} style={{ flexShrink: 0 }} />;
+}
 
 // Always read the freshest token directly from localStorage instead of
 // trusting a prop that a parent route might have captured once and never updated.
@@ -413,18 +541,25 @@ export default function SymptomsPage() {
   return (
     <div style={{ width: "100%", minHeight: "100vh", background: "#FFF6F9" }}>
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "2.5rem 2rem" }}>
-        <h1 style={{ margin: "0 0 6px", lineHeight: "1.2", fontSize: "1.5rem" }}>How are you feeling? 💗</h1>
+        <h1 style={{ margin: "0 0 6px", lineHeight: "1.2", fontSize: "1.5rem", display: "flex", alignItems: "center", gap: 8 }}>
+          <Heart size={22} color="#D4537E" strokeWidth={1.75} />
+          How are you feeling?
+        </h1>
         <p style={{ fontSize: 13, color: "#9A7383", margin: "0 0 1.5rem" }}>Track today's symptoms and mood</p>
 
         {error && (
-          <div style={{ background: "#FEE2E2", color: "#991B1B", padding: "10px 14px", borderRadius: 8, marginBottom: "1rem", fontSize: 13 }}>
-            ⚠️ {error}
+          <div style={{ background: "#FEE2E2", color: "#991B1B", padding: "10px 14px", borderRadius: 8, marginBottom: "1rem", fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
+            <AlertTriangle size={15} strokeWidth={1.75} style={{ flexShrink: 0 }} />
+            <span>{error}</span>
           </div>
         )}
 
         {isEditing && (
           <div style={{ background: "#FFF7ED", color: "#9A3412", padding: "10px 14px", borderRadius: 8, marginBottom: "1rem", fontSize: 13, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-            <span>✏️ Editing log from {new Date(date).toLocaleDateString()}</span>
+            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Pencil size={14} strokeWidth={1.75} />
+              Editing log from {new Date(date).toLocaleDateString()}
+            </span>
             <button
               onClick={cancelEdit}
               style={{ background: "none", border: "none", color: "#9A3412", textDecoration: "underline", cursor: "pointer", fontSize: 13, padding: 0 }}
@@ -438,7 +573,7 @@ export default function SymptomsPage() {
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem", gap: 10, flexWrap: "wrap" }}>
               <div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 14 }}>
-                <span>📅</span>
+                <Calendar size={15} color="#9A7383" strokeWidth={1.75} />
                 <input
                   type="date" value={date} onChange={(e) => setDate(e.target.value)}
                   style={{ border: "1px solid #F0C2D2", borderRadius: 6, padding: "4px 8px", background: "#fff" }}
@@ -456,101 +591,112 @@ export default function SymptomsPage() {
 
             <div style={card}>
               <div className="groups-grid">
-                {SYMPTOM_GROUPS.map((group) => (
-                  <div key={group.label}>
-                    <p style={{ fontWeight: 500, margin: "0 0 10px", fontSize: 14, color: "#72243E" }}>
-                      {group.emoji} {group.label}
-                    </p>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
-                      {group.tags.map(({ name, emoji }) => (
-                        <button
-                          key={name}
-                          onClick={() => toggleTag(name)}
-                          style={{
-                            padding: "6px 14px",
-                            borderRadius: 99,
-                            border: selected.includes(name) ? "1.5px solid #da215f" : "1px solid #F0C2D2",
-                            background: selected.includes(name) ? "#da86a3" : "transparent",
-                            color: "#72243E",
-                            cursor: "pointer",
-                            fontSize: 13,
-                          }}
-                        >
-                          {emoji} {name}
-                        </button>
-                      ))}
+                {SYMPTOM_GROUPS.map((group) => {
+                  const GroupIconComp = GROUP_ICON[group.label] || TagIcon;
+                  return (
+                    <div key={group.label}>
+                      <p style={{ fontWeight: 500, margin: "0 0 10px", fontSize: 14, color: "#72243E", display: "flex", alignItems: "center", gap: 6 }}>
+                        <GroupIconComp size={15} strokeWidth={1.75} />
+                        {group.label}
+                      </p>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+                        {group.tags.map((name) => (
+                          <button
+                            key={name}
+                            onClick={() => toggleTag(name)}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 6,
+                              padding: "6px 14px",
+                              borderRadius: 99,
+                              border: selected.includes(name) ? "1.5px solid #da215f" : "1px solid #F0C2D2",
+                              background: selected.includes(name) ? "#da86a3" : "transparent",
+                              color: "#72243E",
+                              cursor: "pointer",
+                              fontSize: 13,
+                            }}
+                          >
+                            <TagChipIcon name={name} />
+                            {name}
+                          </button>
+                        ))}
 
-                      {(customTagsByGroup[group.label] || []).map((name) => (
-                        <button
-                          key={`custom-${group.label}-${name}`}
-                          onClick={() => toggleTag(name)}
-                          style={{
-                            padding: "6px 14px",
-                            borderRadius: 99,
-                            border: selected.includes(name) ? "1.5px solid #D4537E" : "1px solid #F0C2D2",
-                            background: selected.includes(name) ? "#FBEAF0" : "transparent",
-                            color: "#72243E",
-                            cursor: "pointer",
-                            fontSize: 13,
-                          }}
-                        >
-                          {name}
-                        </button>
-                      ))}
+                        {(customTagsByGroup[group.label] || []).map((name) => (
+                          <button
+                            key={`custom-${group.label}-${name}`}
+                            onClick={() => toggleTag(name)}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 6,
+                              padding: "6px 14px",
+                              borderRadius: 99,
+                              border: selected.includes(name) ? "1.5px solid #D4537E" : "1px solid #F0C2D2",
+                              background: selected.includes(name) ? "#FBEAF0" : "transparent",
+                              color: "#72243E",
+                              cursor: "pointer",
+                              fontSize: 13,
+                            }}
+                          >
+                            <TagIcon size={13} strokeWidth={1.75} />
+                            {name}
+                          </button>
+                        ))}
 
-                      {openCustomGroup === group.label ? (
-                        <input
-                          ref={customInputRef}
-                          type="text"
-                          value={customInput}
-                          onChange={(e) => setCustomInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") submitCustomTag(group.label);
-                            if (e.key === "Escape") cancelCustomInput();
-                          }}
-                          onBlur={() => submitCustomTag(group.label)}
-                          placeholder="Symptom name…"
-                          style={{
-                            padding: "5px 10px",
-                            borderRadius: 99,
-                            border: "1.5px solid #D4537E",
-                            fontSize: 13,
-                            width: 130,
-                          }}
-                        />
-                      ) : (
-                        <button
-                          onClick={() => openCustomInput(group.label)}
-                          title={`Add a symptom to ${group.label}`}
-                          aria-label={`Add a symptom to ${group.label}`}
-                          style={{
-                            width: 26,
-                            height: 26,
-                            borderRadius: "50%",
-                            border: "1.5px dashed #D4537E",
-                            background: "transparent",
-                            color: "#D4537E",
-                            cursor: "pointer",
-                            fontSize: 15,
-                            lineHeight: 1,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            flexShrink: 0,
-                          }}
-                        >
-                          +
-                        </button>
-                      )}
+                        {openCustomGroup === group.label ? (
+                          <input
+                            ref={customInputRef}
+                            type="text"
+                            value={customInput}
+                            onChange={(e) => setCustomInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") submitCustomTag(group.label);
+                              if (e.key === "Escape") cancelCustomInput();
+                            }}
+                            onBlur={() => submitCustomTag(group.label)}
+                            placeholder="Symptom name…"
+                            style={{
+                              padding: "5px 10px",
+                              borderRadius: 99,
+                              border: "1.5px solid #D4537E",
+                              fontSize: 13,
+                              width: 130,
+                            }}
+                          />
+                        ) : (
+                          <button
+                            onClick={() => openCustomInput(group.label)}
+                            title={`Add a symptom to ${group.label}`}
+                            aria-label={`Add a symptom to ${group.label}`}
+                            style={{
+                              width: 26,
+                              height: 26,
+                              borderRadius: "50%",
+                              border: "1.5px dashed #D4537E",
+                              background: "transparent",
+                              color: "#D4537E",
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              flexShrink: 0,
+                            }}
+                          >
+                            <Plus size={14} strokeWidth={2} />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
             <div style={card}>
-              <label style={{ fontSize: 14, color: "#72243E" }}>
-                {INTENSITY_EMOJI[intensity - 1]} Intensity: {intensity}/10
+              <label style={{ fontSize: 14, color: "#72243E", display: "flex", alignItems: "center", gap: 8 }}>
+                <IntensityIcon value={intensity} />
+                Intensity: {intensity}/10
               </label>
               <input
                 type="range" min={1} max={10} step={1} value={intensity}
@@ -573,6 +719,10 @@ export default function SymptomsPage() {
                 disabled={saving || (!selected.length && !notes.trim())}
                 style={{
                   flex: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
                   padding: 12,
                   background: saving || (!selected.length && !notes.trim()) ? "#E8A0B8" : "#D4537E",
                   color: "#fff",
@@ -583,7 +733,14 @@ export default function SymptomsPage() {
                   transition: "background 0.2s",
                 }}
               >
-                {saving ? "Saving…" : isEditing ? "💾 Update symptoms" : "💾 Save symptoms"}
+                {saving ? (
+                  "Saving…"
+                ) : (
+                  <>
+                    <Save size={16} strokeWidth={1.75} />
+                    {isEditing ? "Update symptoms" : "Save symptoms"}
+                  </>
+                )}
               </button>
 
               {isEditing && (
@@ -621,13 +778,19 @@ export default function SymptomsPage() {
           <div>
             {frequentTags.length > 0 && (
               <div style={card}>
-                <p style={{ fontWeight: 500, margin: "0 0 8px", fontSize: 13, color: "#72243E" }}>⭐ Your frequent symptoms</p>
+                <p style={{ fontWeight: 500, margin: "0 0 8px", fontSize: 13, color: "#72243E", display: "flex", alignItems: "center", gap: 6 }}>
+                  <Star size={14} strokeWidth={1.75} />
+                  Your frequent symptoms
+                </p>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                   {frequentTags.map((name) => (
                     <button
                       key={`freq-${name}`}
                       onClick={() => toggleTag(name)}
                       style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
                         padding: "6px 14px",
                         borderRadius: 99,
                         border: selected.includes(name) ? "1.5px solid #D4537E" : "1px solid #F0C2D2",
@@ -637,7 +800,8 @@ export default function SymptomsPage() {
                         fontSize: 13,
                       }}
                     >
-                      {TAG_EMOJI[name] || "•"} {name}
+                      <TagChipIcon name={name} />
+                      {name}
                     </button>
                   ))}
                 </div>
@@ -645,7 +809,10 @@ export default function SymptomsPage() {
             )}
 
             <div>
-              <p style={{ fontWeight: 500, margin: "0 0 10px", color: "#72243E" }}>📖 Recent logs</p>
+              <p style={{ fontWeight: 500, margin: "0 0 10px", color: "#72243E", display: "flex", alignItems: "center", gap: 6 }}>
+                <BookOpen size={14} strokeWidth={1.75} />
+                Recent logs
+              </p>
               {logs.length === 0 && <p style={{ color: "#B491A0" }}>Nothing logged yet.</p>}
               {[...logs].slice(0, 7).map((log) => (
                 <div
@@ -659,8 +826,10 @@ export default function SymptomsPage() {
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-                    <p style={{ fontSize: 12, color: "#B491A0", marginBottom: 6 }}>
-                      {new Date(log.date).toLocaleDateString()} · {INTENSITY_EMOJI[log.intensity - 1]} Intensity {log.intensity}/10
+                    <p style={{ fontSize: 12, color: "#B491A0", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                      {new Date(log.date).toLocaleDateString()} ·
+                      <IntensityIcon value={log.intensity} size={13} />
+                      Intensity {log.intensity}/10
                     </p>
                     <div style={{ display: "flex", gap: 10, flexShrink: 0 }}>
                       <button
@@ -681,7 +850,8 @@ export default function SymptomsPage() {
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
                     {log.tags.map((t) => (
-                      <span key={t} style={{ fontSize: 11, padding: "3px 9px", borderRadius: 99, background: "#FBEAF0", color: "#72243E" }}>
+                      <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, padding: "3px 9px", borderRadius: 99, background: "#FBEAF0", color: "#72243E" }}>
+                        <TagChipIcon name={t} size={11} />
                         {t}
                       </span>
                     ))}
