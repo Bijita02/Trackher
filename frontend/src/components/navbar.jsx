@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import logo from "../assets/logo.png";
-import { Bell, Heart, BarChart3, Menu, X, Home as HomeIcon } from "lucide-react";
+import { Bell, Heart, BarChart3, Menu, X, Home as HomeIcon, LogOut } from "lucide-react";
 import { getCycleNotifications, getSymptomBasedNotifications } from "../utils/cycleMath";
 import { getPregnancyNotifications } from "../utils/pregnancyNotifications";
 
@@ -14,8 +14,84 @@ const BRAND = {
   pinkSoft: "#FCE1EA",
   border: "#EFE2E8",
 };
-const PREGNANCY_ROUTES = ["/pregnancy-dashboard", "/pregnancy-setup", "/pregnancy-calendar", "/weight-tracker", "/cravings"];
-const PREGNANCY_BELL_ROUTES = ["/pregnancy-dashboard", "/pregnancy-calendar", "/weight-tracker", "/cravings"];
+
+const PREGNANCY_ROUTES = [
+  "/pregnancy-dashboard",
+  "/pregnancy-setup",
+  "/pregnancy-calendar",
+  "/weight-tracker",
+  "/cravings",
+];
+const PREGNANCY_BELL_ROUTES = [
+  "/pregnancy-dashboard",
+  "/pregnancy-calendar",
+  "/weight-tracker",
+  "/cravings",
+];
+
+export const NotificationsPage = () => {
+  const navigate = useNavigate();
+  const [notifications, setNotifications] = useState([]);
+
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
+
+  const fetchNotifications = async () => {
+    const token = localStorage.getItem("token") || localStorage.getItem("Token");
+    try {
+      const res = await fetch("http://localhost:5000/api/notifications", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data);
+      }
+    } catch (err) {
+      console.error("Error fetching notifications:", err);
+    }
+  };
+
+  const handleNotificationClick = (notification) => {
+    if (notification.targetStatusId || notification.statusId) {
+      const statusId = notification.targetStatusId || notification.statusId;
+      navigate("/status-feed", {
+        state: { highlightStatusId: statusId },
+      });
+    }
+  };
+
+  return (
+    <div className="max-w-xl mx-auto p-6">
+      <h2 className="text-xl font-bold mb-4">Notifications</h2>
+
+      {notifications.length === 0 ? (
+        <p className="text-gray-400 text-sm">No new notifications.</p>
+      ) : (
+        <div className="space-y-2">
+          {notifications.map((item) => (
+            <div
+              key={item._id}
+              onClick={() => handleNotificationClick(item)}
+              className="p-4 bg-white border border-gray-100 rounded-2xl shadow-sm hover:border-[#C2597A]/30 cursor-pointer transition-all flex justify-between items-center"
+            >
+              <div>
+                <p className="text-sm font-semibold text-gray-800">{item.message}</p>
+                <span className="text-[10px] text-gray-400">
+                  {new Date(item.createdAt).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+              </div>
+              <span className="text-xs text-[#C2597A] font-bold">View →</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -35,8 +111,9 @@ const Navbar = () => {
   const location = useLocation();
 
   const isOnPregnancySection = PREGNANCY_ROUTES.some((r) => location.pathname.startsWith(r));
-const isOnPregnancyBellSection = PREGNANCY_BELL_ROUTES.some((r) => location.pathname.startsWith(r));
-const showPregnancyBell = hasPregnancyTracking && isOnPregnancyBellSection;
+  const isOnPregnancyBellSection = PREGNANCY_BELL_ROUTES.some((r) => location.pathname.startsWith(r));
+  const showPregnancyBell = hasPregnancyTracking && isOnPregnancyBellSection;
+
   useEffect(() => {
     setIsLoggedIn(!!localStorage.getItem("token"));
     setIsOpen(false);
@@ -44,6 +121,7 @@ const showPregnancyBell = hasPregnancyTracking && isOnPregnancyBellSection;
     setShowPregnancyNotifications(false);
   }, [location]);
 
+  // Load Cycle, Symptom, and Social/Status Notifications
   useEffect(() => {
     if (!isLoggedIn) {
       setNotifications([]);
@@ -56,20 +134,26 @@ const showPregnancyBell = hasPregnancyTracking && isOnPregnancyBellSection;
     const loadNotifications = async () => {
       try {
         const userId = localStorage.getItem("userId");
-        const token = localStorage.getItem("token");
-        if (!userId || !token) return;
+        const token = localStorage.getItem("token") || localStorage.getItem("Token");
+        if (!token) return;
 
-        const [userRes, symptomsRes] = await Promise.all([
-          fetch(`http://localhost:5000/api/users/${userId}`, {
+        // Fetch User Info, Symptoms, and Backend Social Notifications concurrently
+        const [userRes, symptomsRes, apiNotifsRes] = await Promise.all([
+          userId
+            ? fetch(`http://localhost:5000/api/users/${userId}`, {
+                headers: { Authorization: `Bearer ${token}` },
+              })
+            : Promise.resolve(null),
+          fetch("http://localhost:5000/api/symptoms", {
             headers: { Authorization: `Bearer ${token}` },
           }),
-          fetch("http://localhost:5000/api/symptoms", {
+          fetch("http://localhost:5000/api/notifications", {
             headers: { Authorization: `Bearer ${token}` },
           }),
         ]);
 
         let cycleNotifications = [];
-        if (userRes.ok) {
+        if (userRes && userRes.ok) {
           const data = await userRes.json();
           if (!cancelled) setUserName(data?.name || "");
           const info = data?.cycleInfo;
@@ -90,8 +174,27 @@ const showPregnancyBell = hasPregnancyTracking && isOnPregnancyBellSection;
           symptomNotifications = getSymptomBasedNotifications(allLogs);
         }
 
+        // Parse Social/Status Notifications from backend
+        let socialNotifications = [];
+        if (apiNotifsRes.ok) {
+          const apiNotifs = await apiNotifsRes.json();
+          socialNotifications = apiNotifs.map((item) => ({
+            id: item._id,
+            icon: "💬",
+            title: "Social Update",
+            message: item.message,
+            actionLabel: "View Feed",
+            statusId: item.targetStatusId || item.statusId,
+            createdAt: item.createdAt,
+          }));
+        }
+
         if (!cancelled) {
-          setNotifications([...symptomNotifications, ...cycleNotifications]);
+          setNotifications([
+            ...socialNotifications,
+            ...symptomNotifications,
+            ...cycleNotifications,
+          ]);
         }
       } catch (err) {
         console.error("Failed to load notifications:", err);
@@ -121,7 +224,7 @@ const showPregnancyBell = hasPregnancyTracking && isOnPregnancyBellSection;
     const loadPregnancyNotifications = async () => {
       try {
         const userId = localStorage.getItem("userId");
-        const token = localStorage.getItem("token");
+        const token = localStorage.getItem("token") || localStorage.getItem("Token");
         if (!userId || !token) return;
 
         const userRes = await fetch(`http://localhost:5000/api/users/${userId}`, {
@@ -171,6 +274,14 @@ const showPregnancyBell = hasPregnancyTracking && isOnPregnancyBellSection;
     };
   }, [isLoggedIn]);
 
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("userId");
+    setIsLoggedIn(false);
+    setIsOpen(false);
+    navigate("/login");
+  };
+
   const visibleNotifications = notifications.filter((n) => !dismissedIds.has(n.id));
   const visiblePregnancyNotifications = pregnancyNotifications.filter(
     (n) => !dismissedPregnancyIds.has(n.id)
@@ -184,10 +295,15 @@ const showPregnancyBell = hasPregnancyTracking && isOnPregnancyBellSection;
   };
 
   const handleNotificationAction = (n) => {
-    if (n.actionPath) {
-      setShowNotifications(false);
-      setShowPregnancyNotifications(false);
-      setIsOpen(false);
+    setShowNotifications(false);
+    setShowPregnancyNotifications(false);
+    setIsOpen(false);
+
+    if (n.statusId) {
+      navigate("/status-feed", {
+        state: { highlightStatusId: n.statusId },
+      });
+    } else if (n.actionPath) {
       navigate(n.actionPath);
     }
   };
@@ -254,7 +370,7 @@ const showPregnancyBell = hasPregnancyTracking && isOnPregnancyBellSection;
               className="flex items-start gap-2 rounded-xl p-2.5"
               style={{ background: BRAND.pinkSoft }}
             >
-              <span className="text-base leading-none mt-0.5">{n.icon}</span>
+              <span className="text-base leading-none mt-0.5">{n.icon || "🔔"}</span>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold" style={{ color: BRAND.ink }}>
                   {n.title}
@@ -262,13 +378,13 @@ const showPregnancyBell = hasPregnancyTracking && isOnPregnancyBellSection;
                 <p className="text-[11px] mt-0.5" style={{ color: BRAND.muted }}>
                   {n.message}
                 </p>
-                {n.actionLabel && n.actionPath && (
+                {(n.actionLabel || n.statusId) && (
                   <button
                     onClick={() => handleNotificationAction(n)}
-                    className="text-[11px] font-semibold mt-1.5 underline"
+                    className="text-[11px] font-semibold mt-1.5 underline block"
                     style={{ color: BRAND.pink }}
                   >
-                    {n.actionLabel} →
+                    {n.actionLabel || "View"} →
                   </button>
                 )}
               </div>
@@ -315,7 +431,7 @@ const showPregnancyBell = hasPregnancyTracking && isOnPregnancyBellSection;
                 {n.actionLabel && n.actionPath && (
                   <button
                     onClick={() => handleNotificationAction(n)}
-                    className="text-[11px] font-semibold mt-1.5 underline"
+                    className="text-[11px] font-semibold mt-1.5 underline block"
                     style={{ color: BRAND.pink }}
                   >
                     {n.actionLabel} →
@@ -462,19 +578,26 @@ const showPregnancyBell = hasPregnancyTracking && isOnPregnancyBellSection;
           <div className="w-px h-6 mx-3" style={{ background: BRAND.border }} />
 
           {isLoggedIn && (
-            <Link
-              to="/profile"
-              aria-label="Profile"
-              className={`flex items-center justify-center h-10 w-10 rounded-full text-xs font-semibold text-white transition-transform hover:scale-105 ${
-                isActive("/profile") ? "ring-2 ring-offset-2" : ""
-              }`}
-              style={{
-                background: `linear-gradient(135deg, ${BRAND.pink}, ${BRAND.pinkDark})`,
-                ...(isActive("/profile") ? { "--tw-ring-color": BRAND.pink } : {}),
-              }}
-            >
-              {initials}
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link
+                to="/profile"
+                aria-label="Profile"
+                className={`flex items-center justify-center h-10 w-10 rounded-full text-xs font-semibold text-white transition-transform hover:scale-105 ${
+                  isActive("/profile") ? "ring-2 ring-offset-2" : ""
+                }`}
+                style={{
+                  background: `linear-gradient(135deg, ${BRAND.pink}, ${BRAND.pinkDark})`,
+                  ...(isActive("/profile") ? { "--tw-ring-color": BRAND.pink } : {}),
+                }}
+              >
+                {initials}
+              </Link>
+              <NavItem
+                onClick={handleLogout}
+                icon={<LogOut size={18} strokeWidth={2} />}
+                label="Logout"
+              />
+            </div>
           )}
 
           {!isLoggedIn && (
@@ -613,6 +736,16 @@ const showPregnancyBell = hasPregnancyTracking && isOnPregnancyBellSection;
                 </div>
               )}
             </>
+          )}
+
+          {isLoggedIn && (
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl text-[#4A3E47] hover:bg-[#F6EEF1]"
+            >
+              <LogOut size={18} strokeWidth={2} />
+              Logout
+            </button>
           )}
 
           {!isLoggedIn && (

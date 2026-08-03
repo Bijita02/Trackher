@@ -1,9 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Calendar, ChevronLeft, ChevronRight, Droplet, Check, X, Loader2 } from "lucide-react";
+import { 
+  Calendar, 
+  ChevronLeft, 
+  ChevronRight, 
+  Droplet, 
+  Check, 
+  X, 
+  Loader2 
+} from "lucide-react";
 import Onboardingmodal from "../components/onboardingmodal";
 import ChatBot from "../components/chatbot";
-import StatusPopup from "../components/StatusPopup"; 
 import {
   MS_PER_DAY,
   dayInCycle,
@@ -45,7 +52,6 @@ function Dashboard() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isChatOpen, setIsChatOpen] = useState(false);
-  const [isVibeOpen, setIsVibeOpen] = useState(false);
 
   const [weekOffset, setWeekOffset] = useState(0);
 
@@ -54,10 +60,15 @@ function Dashboard() {
   const [logSaving, setLogSaving] = useState(false);
   const [logError, setLogError] = useState(null);
 
-  const fetchUser = async () => {
+  // Safely extract cycle metrics at top level
+  const cycleLength = user?.cycleInfo ? Number(user.cycleInfo.cycleLength) : 28;
+  const periodLength = user?.cycleInfo ? Number(user.cycleInfo.periodLength) : 5;
+  const lastPeriodDate = user?.cycleInfo?.lastPeriod ? new Date(user.cycleInfo.lastPeriod) : null;
+
+  const fetchUser = useCallback(async () => {
     try {
       const userId = localStorage.getItem("userId");
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("token") || localStorage.getItem("Token");
 
       if (!userId || !token) {
         setLoading(false);
@@ -95,16 +106,16 @@ function Dashboard() {
         setShowModal(false);
       }
     } catch (err) {
-      console.error(err);
+      console.error("Error fetching user dashboard data:", err);
       setShowModal(true);
     } finally {
-      if (loading) setLoading(false);
+      setLoading(false);
     }
-  };
+  }, [navigate]);
 
   useEffect(() => {
     fetchUser();
-  }, []);
+  }, [fetchUser]);
 
   const handleOnboardingClose = async () => {
     setShowModal(false);
@@ -124,24 +135,13 @@ function Dashboard() {
     }
   };
 
-  const handleNavigateToCycleStats = () => {
-    if (!user?.cycleInfo) return;
-    navigate("/cycle-stats", {
-      state: {
-        lastPeriodDate: user.cycleInfo.lastPeriod,
-        cycleLength: Number(user.cycleInfo.cycleLength),
-        periodLength: Number(user.cycleInfo.periodLength),
-      },
-    });
-  };
-
   async function confirmLogPeriod() {
     if (!logDate) return;
     setLogSaving(true);
     setLogError(null);
 
     try {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("token") || localStorage.getItem("Token");
       const res = await fetch("http://localhost:5000/api/user-cycle", {
         method: "POST",
         headers: {
@@ -165,7 +165,7 @@ function Dashboard() {
       await fetchUser();
     } catch (err) {
       setLogError(err.message);
-    } finally { 
+    } finally {
       setLogSaving(false);
     }
   }
@@ -177,10 +177,6 @@ function Dashboard() {
       </div>
     );
   }
-
-  const cycleLength = user?.cycleInfo ? Number(user.cycleInfo.cycleLength) : null;
-  const periodLength = user?.cycleInfo ? Number(user.cycleInfo.periodLength) : null;
-  const lastPeriodDate = user?.cycleInfo?.lastPeriod ? new Date(user.cycleInfo.lastPeriod) : null;
 
   const CYCLE = lastPeriodDate && cycleLength && periodLength
     ? { lastPeriodStart: lastPeriodDate, cycleLength, periodLength }
@@ -196,7 +192,7 @@ function Dashboard() {
   const untilNextPeriod = CYCLE
     ? ((CYCLE.cycleLength - (cycleDay % CYCLE.cycleLength)) % CYCLE.cycleLength) || CYCLE.cycleLength
     : null;
-  const nextPeriodDate = CYCLE ? addDays(today, untilNextPeriod) : null;
+  const nextPeriodDate = CYCLE ? addDays(new Date(today), untilNextPeriod) : null;
 
   let headline = "";
   let subtitle = "";
@@ -216,16 +212,21 @@ function Dashboard() {
     }
   }
 
-  const weekCenter = CYCLE ? addDays(today, weekOffset * 7) : null;
+  const weekCenter = CYCLE ? addDays(new Date(today), weekOffset * 7) : null;
   const weekDays = CYCLE
-    ? Array.from({ length: 7 }, (_, i) => addDays(weekCenter, i - 3))
+    ? Array.from({ length: 7 }, (_, i) => addDays(new Date(weekCenter), i - 3))
     : [];
   const weekRangeLabel = weekDays.length
     ? `${weekDays[0].toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${weekDays[6].toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
     : "";
 
   return (
-    <div className="min-h-screen bg-[#FDF6F3] relative" style={{ fontFamily: "'Inter', sans-serif" }}>
+    <div 
+      className="min-h-screen bg-[#FDF6F3] relative" 
+      style={{ fontFamily: "'Inter', sans-serif" }}
+      lang="en"
+      translate="no"
+    >
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap');
         .fr-display { font-family: 'Fraunces', serif; }
@@ -249,7 +250,6 @@ function Dashboard() {
             </h1>
             <p className="text-sm mt-1" style={{ color: BRAND.muted }}>Here's your cycle overview</p>
           </div>
-
         </div>
 
         {user?.cycleInfo?.lastPeriod ? (
@@ -293,7 +293,7 @@ function Dashboard() {
                   const phase = groupPhase(phaseForDay(dNum, CYCLE));
                   const color = PHASE_DISPLAY[phase]?.color || BRAND.pink;
                   return (
-                    <div key={i} className="flex flex-col items-center gap-1.5">
+                    <div key={`week-day-${i}`} className="flex flex-col items-center gap-1.5">
                       <span className="text-[10px] font-medium" style={{ color: BRAND.muted }}>
                         {d.toLocaleDateString("en-US", { weekday: "narrow" })}
                       </span>
@@ -339,7 +339,7 @@ function Dashboard() {
               <h2 className="fr-display text-3xl mt-4 mb-1 text-center" style={{ color: BRAND.ink }}>{headline}</h2>
               <p className="text-sm" style={{ color: BRAND.muted }}>{subtitle}</p>
               <p className="text-xs mt-3 inline-block px-4 py-1.5 rounded-full" style={{ background: BRAND.pinkSoft, color: BRAND.pink }}>
-                Next period in {untilNextPeriod} day{untilNextPeriod === 1 ? "" : "s"} · {nextPeriodDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                Next period in {untilNextPeriod} day{untilNextPeriod === 1 ? "" : "s"} · {nextPeriodDate?.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
               </p>
             </div>
 
@@ -394,25 +394,27 @@ function Dashboard() {
 
       {/* Floating Action Buttons */}
       <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
+        {/* Status Feed / Circle Hub Navigation Button */}
         <div className="flex items-center gap-2 group">
           <span className="bg-white text-gray-700 text-[11px] font-medium px-3 py-1.5 rounded-xl shadow-md border border-gray-100 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap">
-            Share your current status with your friends
+            Open Circle Hub
           </span>
           <button
-            onClick={() => setIsVibeOpen(true)}
+            onClick={() => navigate("/status-feed")}
             className="w-12 h-12 bg-amber-500 text-white rounded-full flex items-center justify-center text-xl shadow-lg hover:scale-110 transition-all duration-200 active:scale-95"
-            title="Circle Vibe Check"
+            title="Circle Vibe Check & Feed"
           >
-            💭
+            ✨
           </button>
         </div>
 
+        {/* Luna Bot Button */}
         <div className="flex items-center gap-2 group">
           <span className="bg-white text-gray-700 text-[11px] font-medium px-3 py-1.5 rounded-xl shadow-md border border-gray-100 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap">
             Share with Luna Bot
           </span>
           <button
-            onClick={() => setIsChatOpen(true)}
+            onClick={() => setIsChatOpen((prev) => !prev)}
             className="w-12 h-12 text-white rounded-full flex items-center justify-center text-xl shadow-lg hover:scale-110 transition-all duration-200 active:scale-95"
             style={{ background: BRAND.pink }}
             title="Ask Luna Bot"
@@ -427,12 +429,6 @@ function Dashboard() {
           </div>
         )}
       </div>
-
-      <StatusPopup
-        isOpen={isVibeOpen}
-        onClose={() => setIsVibeOpen(false)}
-        currentUserName={user?.name || localStorage.getItem("userName") || "Meejala"}
-      />
     </div>
   );
 }
@@ -457,6 +453,10 @@ function PhaseRing({ cycle, today, phase }) {
   const r = (size - stroke) / 2;
   const c = size / 2;
   const circumference = 2 * Math.PI * r;
+
+  if (!cycle || !cycle.cycleLength) {
+    return null;
+  }
 
   const ovulationDay = cycle.cycleLength - 14;
   const segments = [
