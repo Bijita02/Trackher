@@ -5,6 +5,8 @@ import { Bell, Heart, BarChart3, Menu, X, Home as HomeIcon, LogOut } from "lucid
 import { getCycleNotifications, getSymptomBasedNotifications } from "../utils/cycleMath";
 import { getPregnancyNotifications } from "../utils/pregnancyNotifications";
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
 const BRAND = {
   ink: "#241220",
   text: "#4A3E47",
@@ -40,7 +42,7 @@ export const NotificationsPage = () => {
   const fetchNotifications = async () => {
     const token = localStorage.getItem("token") || localStorage.getItem("Token");
     try {
-      const res = await fetch("http://localhost:5000/api/notifications", {
+      const res = await fetch(`${API_URL}/api/notifications`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -121,9 +123,10 @@ const Navbar = () => {
     setShowPregnancyNotifications(false);
   }, [location]);
 
-  // Load Cycle, Symptom, and Social/Status Notifications
   useEffect(() => {
-    if (!isLoggedIn) {
+    const token = localStorage.getItem("token") || localStorage.getItem("Token");
+    
+    if (!token) {
       setNotifications([]);
       setUserName("");
       return;
@@ -134,20 +137,18 @@ const Navbar = () => {
     const loadNotifications = async () => {
       try {
         const userId = localStorage.getItem("userId");
-        const token = localStorage.getItem("token") || localStorage.getItem("Token");
         if (!token) return;
 
-        // Fetch User Info, Symptoms, and Backend Social Notifications concurrently
         const [userRes, symptomsRes, apiNotifsRes] = await Promise.all([
           userId
-            ? fetch(`http://localhost:5000/api/users/${userId}`, {
+            ? fetch(`${API_URL}/api/users/${userId}`, {
                 headers: { Authorization: `Bearer ${token}` },
               })
             : Promise.resolve(null),
-          fetch("http://localhost:5000/api/symptoms", {
+          fetch(`${API_URL}/api/symptoms`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
-          fetch("http://localhost:5000/api/notifications", {
+          fetch(`${API_URL}/api/notifications`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
         ]);
@@ -174,7 +175,6 @@ const Navbar = () => {
           symptomNotifications = getSymptomBasedNotifications(allLogs);
         }
 
-        // Parse Social/Status Notifications from backend
         let socialNotifications = [];
         if (apiNotifsRes.ok) {
           const apiNotifs = await apiNotifsRes.json();
@@ -210,10 +210,12 @@ const Navbar = () => {
       cancelled = true;
       window.removeEventListener("symptoms:updated", handleSymptomsUpdated);
     };
-  }, [isLoggedIn]);
+  }, [isLoggedIn, location.pathname]);
 
   useEffect(() => {
-    if (!isLoggedIn) {
+    const token = localStorage.getItem("token") || localStorage.getItem("Token");
+
+    if (!token) {
       setPregnancyNotifications([]);
       setHasPregnancyTracking(false);
       return;
@@ -224,10 +226,9 @@ const Navbar = () => {
     const loadPregnancyNotifications = async () => {
       try {
         const userId = localStorage.getItem("userId");
-        const token = localStorage.getItem("token") || localStorage.getItem("Token");
         if (!userId || !token) return;
 
-        const userRes = await fetch(`http://localhost:5000/api/users/${userId}`, {
+        const userRes = await fetch(`${API_URL}/api/users/${userId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!userRes.ok) return;
@@ -243,7 +244,7 @@ const Navbar = () => {
           return;
         }
 
-        const remindersRes = await fetch("http://localhost:5000/api/pregnancy-reminders", {
+        const remindersRes = await fetch(`${API_URL}/api/pregnancy-reminders`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const reminders = remindersRes.ok ? await remindersRes.json() : [];
@@ -272,13 +273,16 @@ const Navbar = () => {
       cancelled = true;
       window.removeEventListener("pregnancy:updated", handlePregnancyUpdated);
     };
-  }, [isLoggedIn]);
+  }, [isLoggedIn, location.pathname]);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
+    localStorage.removeItem("Token");
     localStorage.removeItem("userId");
     setIsLoggedIn(false);
     setIsOpen(false);
+    setNotifications([]);
+    setPregnancyNotifications([]);
     navigate("/login");
   };
 
@@ -473,6 +477,7 @@ const Navbar = () => {
           </div>
         </Link>
 
+        {/* Desktop Navbar Links */}
         <div className="hidden md:flex items-center gap-2">
           <NavItem to="/" icon={<HomeIcon size={18} strokeWidth={2} />} label="Home" active={isHomeActive()} />
 
@@ -622,6 +627,7 @@ const Navbar = () => {
           )}
         </div>
 
+        {/* Mobile Toggle Button */}
         <button
           className={`md:hidden flex items-center justify-center h-10 w-10 rounded-full transition-colors ${
             isOpen ? "bg-gradient-to-r from-[#E23670] to-[#C82D60] text-white shadow-[0_2px_10px_rgba(226,54,112,0.35)]" : "text-[#4A3E47] hover:bg-[#F6EEF1]"
@@ -633,6 +639,7 @@ const Navbar = () => {
         </button>
       </div>
 
+      {/* Mobile Drawer Menu */}
       {isOpen && (
         <div className="md:hidden bg-white border-t px-4 py-4 space-y-1" style={{ borderColor: BRAND.border }}>
           <Link

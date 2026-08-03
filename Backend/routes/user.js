@@ -18,6 +18,21 @@ const auth = (req, res, next) => {
   }
 };
 
+// ==================== NOTIFICATIONS ENDPOINT ====================
+router.get("/notifications", auth, async (req, res) => {
+  try {
+    // If you have a Notification model, query it here:
+    // const notifications = await Notification.find({ userId: req.user.id }).sort({ createdAt: -1 });
+    // return res.json(notifications);
+
+    // Otherwise, return an empty array to prevent the 500 error:
+    res.json([]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+// ================================================================
+
 router.post("/user-cycle", auth, async (req, res) => {
   try {
     const { lastPeriod, cycleLength, periodLength } = req.body;
@@ -128,7 +143,6 @@ router.get("/symptoms", auth, async (req, res) => {
     if (!user) return res.status(404).json({ error: "User not found" });
 
     const symptoms = user.cycleInfo?.symptoms || [];
-
     const sorted = [...symptoms].sort((a, b) => new Date(b.date) - new Date(a.date));
 
     res.json(sorted);
