@@ -18,14 +18,10 @@ const auth = (req, res, next) => {
   }
 };
 
-// ==========================================
-// FIXED FIXED FIXED: Saves cycle info safely
-// ==========================================
 router.post("/user-cycle", auth, async (req, res) => {
   try {
     const { lastPeriod, cycleLength, periodLength } = req.body;
     
-    // Checks for both formats since the JWT token payload might use ._id instead of .id
     const targetUserId = req.user.id || req.user._id; 
 
     if (!targetUserId) {
@@ -65,7 +61,6 @@ router.post("/pregnancy-info", auth, async (req, res) => {
       return res.status(400).json({ error: "Invalid date" });
     }
 
-    // Fixed fallback here too just in case!
     const targetUserId = req.user.id || req.user._id;
 
     const user = await User.findByIdAndUpdate(
@@ -100,7 +95,6 @@ router.delete("/pregnancy-info", auth, async (req, res) => {
   }
 });
 
-// Gets user
 router.get("/users/:id", auth, async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
@@ -110,7 +104,6 @@ router.get("/users/:id", auth, async (req, res) => {
   }
 });
 
-// Log symptoms for a date
 router.post("/symptoms", auth, async (req, res) => {
   try {
     const { date, tags, notes, intensity } = req.body;
@@ -146,7 +139,6 @@ router.post("/symptoms", auth, async (req, res) => {
   }
 });
 
-// Get all logged symptoms for the user
 router.get("/symptoms", auth, async (req, res) => {
   try {
     const targetUserId = req.user.id || req.user._id;
@@ -162,7 +154,6 @@ router.get("/symptoms", auth, async (req, res) => {
   }
 });
 
-// Delete a specific symptom log by its MongoDB _id
 router.delete("/symptoms/:symptomId", auth, async (req, res) => {
   try {
     const targetUserId = req.user.id || req.user._id;
@@ -182,7 +173,6 @@ router.delete("/symptoms/:symptomId", auth, async (req, res) => {
   }
 });
 
-// Update a specific symptom log by its MongoDB _id
 router.put("/symptoms/:symptomId", auth, async (req, res) => {
   try {
     const { date, tags, notes, intensity } = req.body;

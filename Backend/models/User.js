@@ -1,13 +1,12 @@
 const mongoose = require("mongoose");
 
 const cycleHistorySchema = new mongoose.Schema({
-  date: { type: Date, required: true }, // period start
-  endDate: { type: Date },              // period end (NEW)
+  date: { type: Date, required: true }, 
+  endDate: { type: Date },              
   cycleLength: { type: Number },
   periodLength: { type: Number },
 });
-// NOTE: removed `{ _id: false }` so each history entry gets its own _id,
-// which is required to target it for edit/delete
+
 
 const symptomLogSchema = new mongoose.Schema({
   date: { type: Date, required: true },
