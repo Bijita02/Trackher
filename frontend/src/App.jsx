@@ -19,7 +19,6 @@ import PregnancyCalendarPage from "./pages/PregnancyCalendarPage";
 import ForgotPassword from "./pages/ForgotPassword";
 import Profile from "./pages/Profile";
 
-// Helper component to guard private routes
 const ProtectedRoute = () => {
   const token = localStorage.getItem("token");
   return token ? <Outlet /> : <Navigate to="/login" replace />;
@@ -31,13 +30,12 @@ function App() {
       <Navbar />
       <div className="pt-20"> 
         <Routes>
-          {/* Public Routes */}
+
           <Route path="/" element={<Home />} />
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
 
-          {/* Protected Routes (Requires Login) */}
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/status-feed" element={<StatusFeed />} />
@@ -54,7 +52,6 @@ function App() {
             <Route path="/profile" element={<Profile />} />
           </Route>
 
-          {/* Catch-all fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>

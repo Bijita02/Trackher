@@ -34,7 +34,6 @@ function PregnancyCalendarPage() {
         const dueDateStr = data?.pregnancyInfo?.dueDate;
 
         if (!dueDateStr) {
-          // No due date set yet — send them to set one up first
           navigate("/pregnancy-setup", { replace: true });
           return;
         }

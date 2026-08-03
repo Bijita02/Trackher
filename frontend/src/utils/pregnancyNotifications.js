@@ -14,24 +14,18 @@ function weekAndCountdown(dueDate, today) {
   return { week, daysUntilDue };
 }
 
-// Playful "size" milestones
 const SIZE_MILESTONES = {
   12: { icon: "🍑", message: "Your baby is the size of a plum! They are practicing their swallowing and can even frown now." },
   20: { icon: "🍌", message: "Your baby is the size of a banana and is starting to hear your voice!" },
   30: { icon: "🥬", message: "Your baby is as big as a cabbage! You're in the home stretch." },
 };
 
-// "Note from baby" persona messages
 const BABY_PERSONA = {
   16: "Hi Mom! 👋 I just did a somersault and I'm growing my own hair. Have a great day!",
   24: "I can hear the music you've been playing! 🎶 Let's groove together.",
   36: "I'm running out of space in here! Time to practice stretching and getting ready for the big day.",
 };
 
-/**
- * Builds the pregnancy notification list, mirroring the shape used by
- * getCycleNotifications: { id, icon, title, message, actionLabel, actionPath }
- */
 export function getPregnancyNotifications({ dueDate, today = new Date(), reminders = [] }) {
   if (!dueDate) return [];
 
@@ -65,7 +59,6 @@ export function getPregnancyNotifications({ dueDate, today = new Date(), reminde
     });
   }
 
-  // Weekend bump-photo nudge
   const dow = today.getDay();
   if (dow === 6 || dow === 0) {
     notifications.push({
@@ -78,7 +71,6 @@ export function getPregnancyNotifications({ dueDate, today = new Date(), reminde
     });
   }
 
-  // Nesting mode — final 6 weeks
   if (daysUntilDue > 0 && daysUntilDue <= 42) {
     notifications.push({
       id: "pregnancy-nesting-mode",
@@ -90,7 +82,6 @@ export function getPregnancyNotifications({ dueDate, today = new Date(), reminde
     });
   }
 
-  // Upcoming appointments / important days (next 2 days)
   reminders.forEach((r) => {
     const rDate = new Date(r.date);
     const daysAway = Math.round((stripTime(rDate) - stripTime(today)) / MS_PER_DAY);

@@ -17,7 +17,6 @@ function StatusFeed() {
   const [loading, setLoading] = useState(true);
   const [commentInputs, setCommentInputs] = useState({});
 
-  // New Status Input States
   const [selectedVibe, setSelectedVibe] = useState(VIBES[0]);
   const [statusText, setStatusText] = useState("");
   const [posting, setPosting] = useState(false);
@@ -31,7 +30,6 @@ function StatusFeed() {
   const currentUserId = localStorage.getItem("userId");
   const token = localStorage.getItem("token") || localStorage.getItem("Token");
   
-  // Bulletproof name getter: checks localStorage, user object, or generates one from email
   const currentUserName = (() => {
     const savedName = localStorage.getItem("userName");
     if (savedName && savedName !== "User") return savedName;
@@ -42,10 +40,9 @@ function StatusFeed() {
       if (user.userName) return user.userName;
       if (user.username) return user.username;
     } catch (e) {
-      // Ignore JSON parse errors
+  
     }
 
-    // Ultimate fallback: check if user has an email stored and derive a nice name from it
     const savedEmail = localStorage.getItem("userEmail") || "";
     if (savedEmail) {
       const prefix = savedEmail.split("@")[0];
@@ -271,7 +268,6 @@ function StatusFeed() {
           </p>
         </div>
 
-        {/* Post Creation Card */}
         <form onSubmit={handlePostStatus} className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm mb-8">
           <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-3">
             Share your vibe with the circle
@@ -408,7 +404,6 @@ function StatusFeed() {
                           )}
                         </div>
 
-                        {/* COMMENTS LIST */}
                         {item.comments && item.comments.length > 0 && (
                           <div className="space-y-1.5 bg-gray-50/80 p-3 rounded-xl border border-gray-100/60 max-h-32 overflow-y-auto">
                             {item.comments.map((comment, idx) => {
