@@ -1,9 +1,43 @@
 const express = require("express");
 const router = express.Router();
-const Status = require("../models/Status");
-const User = require("../models/User");
+const mongoose = require("mongoose");
 const jwt = require("jsonwebtoken");
 
+// Inline Notification Schema & Model
+const notificationSchema = new mongoose.Schema({
+  recipient: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  sender: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  message: { type: String, required: true },
+  targetStatusId: { type: mongoose.Schema.Types.ObjectId, ref: "Status" },
+  createdAt: { type: Date, default: Date.now },
+});
+
+const Notification = mongoose.models.Notification || mongoose.model("Notification", notificationSchema);
+
+// Status Schema & Model
+const statusSchema = new mongoose.Schema({
+  user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  userName: { type: String, required: true },
+  content: { type: String, required: true },
+  vibeBadge: {
+    emoji: String,
+    label: String,
+  },
+  likes: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  comments: [
+    {
+      user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+      userName: { type: String, required: true },
+      text: { type: String, required: true },
+      createdAt: { type: Date, default: Date.now },
+    },
+  ],
+  createdAt: { type: Date, default: Date.now },
+});
+
+const Status = mongoose.models.Status || mongoose.model("Status", statusSchema);
+
+// Helper Token Verification Middleware
 function verifyToken(req) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -15,14 +49,16 @@ function verifyToken(req) {
   try {
     return jwt.verify(token, process.env.JWT_SECRET);
   } catch (jwtErr) {
-    const err = new Error("Invalid token session");
+    const err = new Error("Invalid or expired token");
     err.status = 401;
     throw err;
   }
 }
 
-// GET status feed
-router.get("/feed", async (req, res) => {
+// ==========================================
+// 1. GET STATUS FEED
+// ==========================================
+router.get(["/", "/feed"], async (req, res) => {
   try {
     const statuses = await Status.find().sort({ createdAt: -1 });
     res.json(statuses);
@@ -31,131 +67,163 @@ router.get("/feed", async (req, res) => {
   }
 });
 
-// POST new status
-router.post("/add", async (req, res) => {
+// ==========================================
+// 2. CREATE A STATUS POST
+// ==========================================
+router.post(["/", "/add"], async (req, res) => {
   try {
-    let authenticatedUserId = null;
-    try {
-      const decoded = verifyToken(req);
-      authenticatedUserId = decoded.id || decoded._id;
-    } catch (tokenErr) {
-      // Optional fallback if token isn't strictly enforced on client
-    }
+    const decoded = verifyToken(req);
+    const userId = decoded.id || decoded._id;
+    const { content, text, userName, username, vibeBadge } = req.body;
 
-    const { userId, userName, username, vibeBadge, statusText, content } = req.body;
+    const rawContent = content || text;
+    const finalContent = rawContent && rawContent.trim() !== "" 
+      ? rawContent 
+      : (vibeBadge?.label ? `Feeling ${vibeBadge.label}` : (vibeBadge?.emoji || "Shared a vibe update"));
 
-    const targetUser = authenticatedUserId || userId;
-    const finalContent = statusText || content;
-
-    if (!finalContent || finalContent.trim() === "") {
-      return res.status(400).json({ error: "Status content cannot be empty" });
-    }
-    if (!targetUser) {
-      return res.status(400).json({ error: "User context identification is required" });
-    }
-
-    const userProfile = await User.findById(targetUser);
-    const activeDisplayName =
-      (userProfile && (userProfile.name || userProfile.userName || userProfile.username)) ||
-      userName ||
-      username ||
-      "Friend";
+    const finalUserName = userName || username || decoded.name || decoded.userName || "Anonymous";
 
     const newStatus = new Status({
-      user: targetUser,
-      userName: activeDisplayName,
-      content: finalContent.trim(),
-      vibeBadge: vibeBadge || { emoji: "✨", text: "Vibing" },
-      likes: [],
-      comments: [],
+      user: userId,
+      userName: finalUserName,
+      content: finalContent,
+      vibeBadge,
     });
 
     await newStatus.save();
     res.status(201).json(newStatus);
   } catch (err) {
-    console.error("Validation breakdown on save:", err.message);
-    res.status(400).json({ error: err.message });
+    console.error("Create status error:", err);
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
-// POST toggle like (Corrected ObjectId string check)
+// ==========================================
+// 3. LIKE / UNLIKE A STATUS
+// ==========================================
 router.post("/:id/like", async (req, res) => {
   try {
     const decoded = verifyToken(req);
-    const targetUserId = (decoded.id || decoded._id).toString();
+    const userId = decoded.id || decoded._id;
 
-    const post = await Status.findById(req.params.id);
-    if (!post) return res.status(404).json({ error: "Status not found" });
+    const status = await Status.findById(req.params.id);
+    if (!status) return res.status(404).json({ error: "Status post not found" });
 
-    // Compare string representations of ObjectIds
-    const hasLiked = post.likes.some((id) => id.toString() === targetUserId);
+    const likedIndex = status.likes.findIndex((id) => String(id) === String(userId));
 
-    if (hasLiked) {
-      post.likes = post.likes.filter((id) => id.toString() !== targetUserId);
+    if (likedIndex > -1) {
+      status.likes.splice(likedIndex, 1);
     } else {
-      post.likes.push(targetUserId);
+      status.likes.push(userId);
+
+      if (String(status.user) !== String(userId)) {
+        await Notification.create({
+          recipient: status.user,
+          sender: userId,
+          message: `Someone liked your status!`,
+          targetStatusId: status._id,
+        });
+      }
     }
 
-    await post.save();
-    res.json({ message: hasLiked ? "Unliked" : "Liked", likes: post.likes });
+    await status.save();
+    res.json(status);
   } catch (err) {
     res.status(err.status || 500).json({ error: err.message });
   }
 });
 
-// POST add comment
-router.post("/:id/comment", async (req, res) => {
+// ==========================================
+// 4. ADD A COMMENT
+// ==========================================
+const handleAddComment = async (req, res) => {
   try {
     const decoded = verifyToken(req);
-    const targetUserId = decoded.id || decoded._id;
-    const { text } = req.body;
+    const userId = decoded.id || decoded._id;
+    const { text, userName, username } = req.body;
 
-    if (!text || text.trim() === "") {
-      return res.status(400).json({ error: "Comment text cannot be empty" });
-    }
+    const status = await Status.findById(req.params.id);
+    if (!status) return res.status(404).json({ error: "Status post not found" });
 
-    const post = await Status.findById(req.params.id);
-    if (!post) return res.status(404).json({ error: "Status not found" });
-
-    const commenterProfile = await User.findById(targetUserId);
-    const activeDisplayName =
-      (commenterProfile &&
-        (commenterProfile.name || commenterProfile.userName || commenterProfile.username)) ||
-      "Friend";
+    // Extracts username from body, token, or falls back gracefully
+    const finalUserName = userName || username || decoded.name || decoded.userName || "Someone";
 
     const newComment = {
-      user: targetUserId,
-      userName: activeDisplayName,
-      text: text.trim(),
+      user: userId,
+      userName: finalUserName,
+      text,
       createdAt: new Date(),
     };
 
-    post.comments.push(newComment);
-    await post.save();
+    status.comments.push(newComment);
+    await status.save();
 
-    res.json({ message: "Comment saved successfully", comments: post.comments });
+    if (String(status.user) !== String(userId)) {
+      await Notification.create({
+        recipient: status.user,
+        sender: userId,
+        message: `${finalUserName} commented on your status.`,
+        targetStatusId: status._id,
+      });
+    }
+
+    res.json(status);
   } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+};
+
+router.post("/:id/comment", handleAddComment);
+router.post("/:id/comments", handleAddComment);
+
+// ==========================================
+// 5. DELETE A COMMENT
+// ==========================================
+router.delete("/:statusId/comments/:commentId", async (req, res) => {
+  try {
+    const decoded = verifyToken(req);
+    const userId = decoded.id || decoded._id;
+
+    const status = await Status.findById(req.params.statusId);
+    if (!status) return res.status(404).json({ error: "Status post not found" });
+
+    const comment = status.comments.id(req.params.commentId);
+    if (!comment) return res.status(404).json({ error: "Comment not found" });
+
+    const isCommentAuthor = String(comment.user) === String(userId);
+    const isStatusOwner = String(status.user) === String(userId);
+
+    if (!isCommentAuthor && !isStatusOwner) {
+      return res.status(403).json({ error: "Not authorized to delete this comment" });
+    }
+
+    status.comments.pull(req.params.commentId);
+    await status.save();
+
+    res.json({ message: "Comment deleted successfully", status });
+  } catch (err) {
+    console.error("Delete comment error:", err);
     res.status(err.status || 500).json({ error: err.message });
   }
 });
 
-// DELETE status
+// ==========================================
+// 6. DELETE A STATUS POST
+// ==========================================
 router.delete("/:id", async (req, res) => {
   try {
     const decoded = verifyToken(req);
-    const targetUserId = (decoded.id || decoded._id).toString();
+    const userId = decoded.id || decoded._id;
 
-    const post = await Status.findById(req.params.id);
-    if (!post) {
-      return res.status(404).json({ error: "Status not found" });
-    }
+    const status = await Status.findById(req.params.id);
+    if (!status) return res.status(404).json({ error: "Status post not found" });
 
-    if (post.user.toString() !== targetUserId) {
-      return res.status(403).json({ error: "Unauthorized to delete this status" });
+    if (String(status.user) !== String(userId)) {
+      return res.status(403).json({ error: "Not authorized to delete this status" });
     }
 
     await Status.findByIdAndDelete(req.params.id);
-    res.json({ message: "Status deleted successfully", deletedId: req.params.id });
+    res.json({ message: "Status deleted successfully" });
   } catch (err) {
     res.status(err.status || 500).json({ error: err.message });
   }

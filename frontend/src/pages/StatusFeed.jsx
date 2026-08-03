@@ -30,12 +30,35 @@ function StatusFeed() {
 
   const currentUserId = localStorage.getItem("userId");
   const token = localStorage.getItem("token") || localStorage.getItem("Token");
+  
+  // Bulletproof name getter: checks localStorage, user object, or generates one from email
+  const currentUserName = (() => {
+    const savedName = localStorage.getItem("userName");
+    if (savedName && savedName !== "User") return savedName;
+
+    try {
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      if (user.name) return user.name;
+      if (user.userName) return user.userName;
+      if (user.username) return user.username;
+    } catch (e) {
+      // Ignore JSON parse errors
+    }
+
+    // Ultimate fallback: check if user has an email stored and derive a nice name from it
+    const savedEmail = localStorage.getItem("userEmail") || "";
+    if (savedEmail) {
+      const prefix = savedEmail.split("@")[0];
+      return prefix.charAt(0).toUpperCase() + prefix.slice(1);
+    }
+
+    return "My Profile";
+  })();
 
   useEffect(() => {
     fetchStatuses();
   }, []);
 
-  // Cleanup refs when statuses list changes to prevent "Node not found" DOM reconciliation errors
   useEffect(() => {
     statusRefs.current = {};
   }, [statuses]);
@@ -80,6 +103,7 @@ function StatusFeed() {
         body: JSON.stringify({
           statusText: statusText.trim(),
           vibeBadge: selectedVibe,
+          userName: currentUserName,
         }),
       });
 
@@ -137,7 +161,10 @@ function StatusFeed() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ text: commentText }),
+          body: JSON.stringify({ 
+            text: commentText,
+            userName: currentUserName 
+          }),
         }
       );
 
@@ -154,6 +181,43 @@ function StatusFeed() {
       }
     } catch (err) {
       console.error("Error updating status comment:", err);
+    }
+  };
+
+  const handleDeleteComment = async (statusId, commentId) => {
+    if (!window.confirm("Are you sure you want to delete this reply?")) return;
+
+    try {
+      const res = await fetch(
+        `http://localhost:5000/api/status/${statusId}/comments/${commentId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await res.json();
+      if (res.ok) {
+        setStatuses((prev) =>
+          prev.map((item) => {
+            if (item._id === statusId) {
+              return {
+                ...item,
+                comments: (item.comments || []).filter(
+                  (c) => (c._id ? c._id.toString() : "") !== commentId
+                ),
+              };
+            }
+            return item;
+          })
+        );
+      } else {
+        alert(data.error || "Failed to delete comment");
+      }
+    } catch (err) {
+      console.error("Error deleting comment:", err);
     }
   };
 
@@ -190,6 +254,7 @@ function StatusFeed() {
       <div className="max-w-3xl mx-auto p-6">
         <div className="mb-6">
           <button
+            type="button"
             onClick={() => navigate("/dashboard")}
             className="text-xs font-bold text-gray-400 hover:text-[#C2597A] flex items-center gap-1.5 transition-colors mb-2 group"
           >
@@ -343,23 +408,51 @@ function StatusFeed() {
                           )}
                         </div>
 
+                        {/* COMMENTS LIST */}
                         {item.comments && item.comments.length > 0 && (
                           <div className="space-y-1.5 bg-gray-50/80 p-3 rounded-xl border border-gray-100/60 max-h-32 overflow-y-auto">
-                            {item.comments.map((comment, idx) => (
-                              <div
-                                key={
-                                  comment._id
-                                    ? comment._id.toString()
-                                    : `comment-${item._id}-${idx}`
-                                }
-                                className="text-[11px] text-gray-600"
-                              >
-                                <span className="font-bold text-gray-700 mr-1.5">
-                                  {comment.userName || "Friend"}:
-                                </span>
-                                <span>{comment.text}</span>
-                              </div>
-                            ))}
+                            {item.comments.map((comment, idx) => {
+                              const commentId = comment._id
+                                ? comment._id.toString()
+                                : `comment-${item._id}-${idx}`;
+                              const commentAuthorId = (
+                                comment.user?._id || comment.user || ""
+                              ).toString();
+
+                              const canDeleteComment =
+                                activeUserId &&
+                                (commentAuthorId === activeUserId || isOwner);
+
+                              return (
+                                <div
+                                  key={commentId}
+                                  className="text-[11px] text-gray-600 flex items-center justify-between group/comment"
+                                >
+                                  <div>
+                                    <span className="font-bold text-gray-700 mr-1.5">
+                                      {comment.userName || "Friend"}:
+                                    </span>
+                                    <span>{comment.text}</span>
+                                  </div>
+
+                                  {canDeleteComment && comment._id && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleDeleteComment(
+                                          item._id,
+                                          comment._id.toString()
+                                        )
+                                      }
+                                      className="text-gray-300 hover:text-red-500 transition-colors p-0.5 ml-2 opacity-60 hover:opacity-100"
+                                      title="Delete reply"
+                                    >
+                                      🗑️
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
 

@@ -1,6 +1,26 @@
 const mongoose = require("mongoose");
 
-const StatusSchema = new mongoose.Schema({
+const commentSchema = new mongoose.Schema({
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+  },
+  userName: {
+    type: String,
+    required: true,
+  },
+  text: {
+    type: String,
+    required: true,
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+});
+
+const statusSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
@@ -14,37 +34,21 @@ const StatusSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  vibeBadge: {
+    emoji: { type: String, default: "✨" },
+    text: { type: String, default: "Vibing" },
+  },
   likes: [
     {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-    }
+    },
   ],
-  comments: [
-    {
-      user: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-        required: true,
-      },
-      userName: {
-        type: String,
-        required: true,
-      },
-      text: {
-        type: String,
-        required: true,
-      },
-      createdAt: {
-        type: Date,
-        default: Date.now,
-      }
-    }
-  ],
+  comments: [commentSchema],
   createdAt: {
     type: Date,
     default: Date.now,
   },
 });
 
-module.exports = mongoose.model("Status", StatusSchema);
+module.exports = mongoose.model("Status", statusSchema);

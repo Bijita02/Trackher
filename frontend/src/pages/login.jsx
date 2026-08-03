@@ -1,7 +1,5 @@
-import { useNavigate } from "react-router-dom";
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import logo from "../assets/logo.png";
+import React, { useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import { FaEye, FaEyeSlash, FaEnvelope, FaLock, FaArrowRight } from "react-icons/fa";
 
 const Login = () => {
@@ -42,17 +40,38 @@ const Login = () => {
         localStorage.setItem("token", data.token);
         localStorage.setItem("userId", data.userId || data.user?._id);
         
-        // Dynamically save the actual user's display name from backend response
-        const activeName = data.userName || data.username || data.name || data.user?.name || data.user?.userName;
+        // Save user email to local storage as a fallback identity anchor
+        if (formData.email) {
+          localStorage.setItem("userEmail", formData.email);
+        }
+        
+        // 1. Try extracting name from common backend response structures
+        let activeName = 
+          data.userName || 
+          data.username || 
+          data.name || 
+          data.fullName || 
+          data.user?.userName || 
+          data.user?.username || 
+          data.user?.name || 
+          data.user?.fullName;
+
+        // 2. Fallback: If backend didn't send a name, generate one nicely from their email prefix (e.g. "vidyut@gmail.com" -> "Vidyut")
+        if (!activeName && formData.email) {
+          const emailPrefix = formData.email.split("@")[0];
+          activeName = emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
+        }
+
+        // 3. Save to localStorage so StatusFeed can read it immediately
         if (activeName) {
           localStorage.setItem("userName", activeName);
         }
 
-        setMessage("Success: " + data.message);
+        setMessage("Success: " + (data.message || "Logged in successfully"));
 
         setTimeout(() => navigate("/dashboard"), 1000);
       } else {
-        setMessage(" Error: " + data.error);
+        setMessage(" Error: " + (data.error || "Login failed"));
       }
     } catch (error) {
       console.error("Login error:", error);
