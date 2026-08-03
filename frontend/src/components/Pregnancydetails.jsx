@@ -138,7 +138,6 @@ export default function PregnancyDetails({
 
   const milestoneData = useMemo(() => upcomingMilestones(todayDay), [todayDay]);
 
-  // Upcoming reminders (today onward), soonest first, for the list under the calendar
   const upcomingReminders = useMemo(() => {
     return reminders
       .filter((r) => stripTime(new Date(r.date)) >= stripTime(today))
@@ -792,7 +791,6 @@ function DayPopup({
           </button>
         )}
 
-        {/* Set as due date */}
         <div
           className="rounded-xl p-4 mb-3 flex items-center gap-3"
           style={{ background: t ? t.soft : "#F7F5F4" }}

@@ -627,7 +627,6 @@ const Navbar = () => {
           )}
         </div>
 
-        {/* Mobile Toggle Button */}
         <button
           className={`md:hidden flex items-center justify-center h-10 w-10 rounded-full transition-colors ${
             isOpen ? "bg-gradient-to-r from-[#E23670] to-[#C82D60] text-white shadow-[0_2px_10px_rgba(226,54,112,0.35)]" : "text-[#4A3E47] hover:bg-[#F6EEF1]"
@@ -639,7 +638,6 @@ const Navbar = () => {
         </button>
       </div>
 
-      {/* Mobile Drawer Menu */}
       {isOpen && (
         <div className="md:hidden bg-white border-t px-4 py-4 space-y-1" style={{ borderColor: BRAND.border }}>
           <Link

@@ -26,7 +26,7 @@ export default function ChatBotWidget({ onClose }) {
     setLoading(true);
 
     try {
-      const response = await fetch('http://localhost:5000/api/ai/chat', { // Make sure this matches your server route!
+      const response = await fetch('http://localhost:5000/api/ai/chat', { 
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

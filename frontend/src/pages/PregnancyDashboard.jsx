@@ -117,17 +117,12 @@ function PregnancyDashboard() {
       const data = await res.json();
       setUser(data);
 
-      // Postpartum handling is based ONLY on confirmed deliveryDate — never
-      // on dueDate. dueDate is an estimate and can't reliably tell us
-      // whether the baby has actually arrived.
       const deliveryDateStr = data?.pregnancyInfo?.deliveryDate;
       if (deliveryDateStr) {
         const deliveryDate = new Date(deliveryDateStr);
         const daysPastDelivery = (Date.now() - deliveryDate.getTime()) / MS_PER_DAY;
         if (daysPastDelivery >= POSTPARTUM_BUFFER_DAYS) {
-          // Postpartum window is over — actually clear pregnancyInfo
-          // server-side instead of just redirecting and leaving the
-          // account in a stale, ambiguous state.
+
           const clearRes = await fetch("http://localhost:5000/api/pregnancy-info", {
             method: "DELETE",
             headers: { Authorization: `Bearer ${token}` },
