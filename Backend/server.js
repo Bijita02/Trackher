@@ -64,6 +64,7 @@ function computeEndDate(startDate, periodLength) {
   end.setDate(end.getDate() + (periodLength || 5) - 1);
   return end;
 }
+
 async function syncLatestPeriod(userId) {
   const user = await User.findById(userId);
   if (!user) return null;
@@ -138,6 +139,7 @@ app.post("/api/login", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 app.post("/api/reset-password", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -194,9 +196,7 @@ app.post("/api/user-cycle", async (req, res) => {
       targetUserId,
       {
         $set: {
-          "cycleInfo.lastPeriod": startDate,
-          "cycleInfo.cycleLength": parsedCycleLength,
-          "cycleInfo.periodLength": parsedPeriodLength,
+          ...(parsedCycleLength && { "cycleInfo.cycleLength": parsedCycleLength }),
         },
         $push: {
           "cycleInfo.history": {
@@ -214,9 +214,11 @@ app.post("/api/user-cycle", async (req, res) => {
       return res.status(404).json({ error: "User matching this token footprint not found" });
     }
 
+    const synced = await syncLatestPeriod(targetUserId);
+
     res.json({
       message: "Cycle updated successfully",
-      user: updatedUser,
+      user: synced,
     });
 
   } catch (err) {
@@ -224,6 +226,7 @@ app.post("/api/user-cycle", async (req, res) => {
     res.status(err.status || 500).json({ error: err.message });
   }
 });
+
 app.put("/api/user-cycle/:entryId", async (req, res) => {
   try {
     const decoded = verifyToken(req);
@@ -328,7 +331,7 @@ app.post("/api/pregnancy-info", async (req, res) => {
         },
       },
     { returnDocument: "after" }
-  
+
     );
 
     if (!user) return res.status(404).json({ error: "User not found" });

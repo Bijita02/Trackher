@@ -72,7 +72,6 @@ router.post("/user-cycle", auth, async (req, res) => {
       targetUserId,
       {
         $set: {
-          "cycleInfo.lastPeriod": startDate,
           ...(parsedCycleLength && { "cycleInfo.cycleLength": parsedCycleLength }),
           ...(parsedPeriodLength && { "cycleInfo.periodLength": parsedPeriodLength }),
         },
@@ -90,7 +89,8 @@ router.post("/user-cycle", auth, async (req, res) => {
 
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    res.json(user);
+    const synced = await syncLatestPeriod(targetUserId);
+    res.json(synced);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

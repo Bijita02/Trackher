@@ -23,10 +23,10 @@ function addDaysLocal(date, n) {
 
 function PregnancySetup() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState("dueDate"); 
+  const [mode, setMode] = useState("dueDate");
   const [selectedDate, setSelectedDate] = useState(null);
-  const [hasUserEdited, setHasUserEdited] = useState(false); 
-  const [existingLastPeriod, setExistingLastPeriod] = useState(null); 
+  const [hasUserEdited, setHasUserEdited] = useState(false);
+  const [existingLastPeriod, setExistingLastPeriod] = useState(null);
   const [prefillNote, setPrefillNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -44,7 +44,10 @@ function PregnancySetup() {
         if (!res.ok) return;
 
         const data = await res.json();
-        const lastPeriodStr = data?.cycleInfo?.lastPeriod;
+
+        const lastPeriodStr =
+          data?.cycleInfo?.lastPeriod || data?.pregnancyInfo?.lastPeriod;
+
         if (lastPeriodStr) {
           setExistingLastPeriod(utcStringToLocalDate(lastPeriodStr));
         }
@@ -61,7 +64,7 @@ function PregnancySetup() {
 
     if (mode === "lastPeriod") {
       setSelectedDate(existingLastPeriod);
-      setPrefillNote("Pulled in from your cycle tracking — change it if this isn't right.");
+      setPrefillNote("Pulled in from your records — change it if this isn't right.");
     } else if (mode === "dueDate") {
       const suggestedDueDate = addDaysLocal(existingLastPeriod, TOTAL_PREGNANCY_DAYS);
       setSelectedDate(suggestedDueDate);
@@ -104,7 +107,23 @@ function PregnancySetup() {
       });
 
       if (!res.ok) throw new Error("Failed to save pregnancy info");
-         window.dispatchEvent(new Event("pregnancy:updated"));   
+
+      if (mode === "lastPeriod") {
+        try {
+          await fetch("http://localhost:5000/api/user-cycle", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ lastPeriod: dateStr }),
+          });
+        } catch (syncErr) {
+          console.error("Failed to sync cycle info:", syncErr);
+        }
+      }
+
+      window.dispatchEvent(new Event("pregnancy:updated"));
       navigate("/pregnancy-dashboard", { replace: true });
     } catch (err) {
       console.error(err);
