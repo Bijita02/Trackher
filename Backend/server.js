@@ -1,14 +1,12 @@
 require("dotenv").config();
 console.log("Checking API Key:", process.env.GEMINI_API_KEY ? "Key Found!" : "Key MISSING!");
 console.log("Checking JWT Secret:", process.env.JWT_SECRET ? "Secret Found!" : "Secret MISSING!");
-
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const validator = require("validator");
-
 const User = require("./models/User");
 const symptomsRoute = require("./Routes/SymptomsRoute");
 const AiChatRoute = require("./Routes/AiChatRoute");
@@ -18,7 +16,6 @@ const cravingsRoute = require("./Routes/Cravingsroute");
 const pregnancyReminderRoute = require("./Routes/Pregnancyreminderroute");
 
 const app = express();
-
 app.use(cors());
 app.use(express.json());
 
@@ -46,6 +43,7 @@ function verifyToken(req) {
   try {
     return jwt.verify(token, process.env.JWT_SECRET);
   } catch (jwtErr) {
+
     console.error("JWT verify failed:", jwtErr.name, "-", jwtErr.message);
 
     const err = new Error(
@@ -67,7 +65,6 @@ function computeEndDate(startDate, periodLength) {
   return end;
 }
 
-
 async function syncLatestPeriod(userId) {
   const user = await User.findById(userId);
   if (!user) return null;
@@ -84,12 +81,10 @@ async function syncLatestPeriod(userId) {
   return user;
 }
 
-// Base Route
 app.get("/", (req, res) => {
   res.send("Backend server is running");
 });
 
-// Authentication Routes
 app.post("/api/register", async (req, res) => {
   try {
     const { name, email, password, birthdate } = req.body;
@@ -105,6 +100,7 @@ app.post("/api/register", async (req, res) => {
     await user.save();
 
     const userIdString = user._id.toString();
+
     const token = jwt.sign(
       { id: userIdString, _id: userIdString },
       process.env.JWT_SECRET,
@@ -131,6 +127,7 @@ app.post("/api/login", async (req, res) => {
     if (!isMatch) return res.status(401).json({ error: "Invalid password" });
 
     const userIdString = user._id.toString();
+
     const token = jwt.sign(
       { id: userIdString, _id: userIdString },
       process.env.JWT_SECRET,
@@ -142,7 +139,6 @@ app.post("/api/login", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 
 app.post("/api/reset-password", async (req, res) => {
   try {
@@ -170,7 +166,6 @@ app.post("/api/reset-password", async (req, res) => {
   }
 });
 
-// Cycle Tracking Routes
 app.post("/api/user-cycle", async (req, res) => {
   try {
     const decoded = verifyToken(req);
@@ -225,12 +220,12 @@ app.post("/api/user-cycle", async (req, res) => {
       message: "Cycle updated successfully",
       user: synced,
     });
+
   } catch (err) {
     console.error("Cycle update error:", err);
     res.status(err.status || 500).json({ error: err.message });
   }
 });
-
 
 app.put("/api/user-cycle/:entryId", async (req, res) => {
   try {
@@ -268,7 +263,7 @@ app.put("/api/user-cycle/:entryId", async (req, res) => {
           ...(parsedPeriodLength && { "cycleInfo.history.$.periodLength": parsedPeriodLength }),
         },
       },
-      { returnDocument: "after" }
+     { returnDocument: "after" }
     );
 
     if (!updated) {
@@ -308,7 +303,6 @@ app.delete("/api/user-cycle/:entryId", async (req, res) => {
   }
 });
 
-// Pregnancy Info Routes
 app.post("/api/pregnancy-info", async (req, res) => {
   try {
     const decoded = verifyToken(req);
@@ -334,13 +328,39 @@ app.post("/api/pregnancy-info", async (req, res) => {
           dueDate: resolvedDueDate,
           lastPeriod: lastPeriod ? new Date(lastPeriod) : undefined,
           startDate: new Date(),
+          deliveryDate: null,
         },
       },
-      { returnDocument: "after" }
+    { returnDocument: "after" }
 
     );
 
     if (!user) return res.status(404).json({ error: "User not found" });
+    res.json(user);
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+app.post("/api/pregnancy-info/delivered", async (req, res) => {
+  try {
+    const decoded = verifyToken(req);
+    const { deliveryDate } = req.body;
+
+    const parsedDeliveryDate = deliveryDate ? new Date(deliveryDate) : new Date();
+    if (Number.isNaN(parsedDeliveryDate.getTime())) {
+      return res.status(400).json({ error: "Invalid delivery date" });
+    }
+
+    const user = await User.findById(decoded.id || decoded._id);
+    if (!user) return res.status(404).json({ error: "User not found" });
+    if (!user.pregnancyInfo) {
+      return res.status(400).json({ error: "No active pregnancy tracking found" });
+    }
+
+    user.pregnancyInfo.deliveryDate = parsedDeliveryDate;
+    await user.save();
+
     res.json(user);
   } catch (err) {
     res.status(err.status || 500).json({ error: err.message });
@@ -354,7 +374,7 @@ app.delete("/api/pregnancy-info", async (req, res) => {
     const user = await User.findByIdAndUpdate(
       decoded.id || decoded._id,
       { $set: { pregnancyInfo: null } },
-      { returnDocument: "after" }
+     { returnDocument: "after" }
     );
 
     if (!user) return res.status(404).json({ error: "User not found" });
@@ -364,7 +384,6 @@ app.delete("/api/pregnancy-info", async (req, res) => {
   }
 });
 
-// User Management Routes
 app.get("/api/users/:id", async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
@@ -385,6 +404,7 @@ app.put("/api/users/:id", async (req, res) => {
     }
 
     const { name, email, birthdate } = req.body;
+
     const update = {};
     if (name !== undefined) update.name = name;
     if (email !== undefined) update.email = email;
@@ -427,25 +447,7 @@ app.delete("/api/users/:id", async (req, res) => {
     res.status(err.status || 500).json({ error: err.message });
   }
 });
-
-// Safe Notifications Endpoint (Returns empty array to prevent 500 crashes)
-app.get("/api/notifications", async (req, res) => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ error: "No token provided" });
-    }
-    const token = authHeader.slice(7).trim();
-    jwt.verify(token, process.env.JWT_SECRET);
-
-    res.json([]);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Mounted Sub-Routers
-app.use("/api/status", statusRoutes);
+app.use('/api/status', statusRoutes);
 app.use("/api/symptoms", symptomsRoute);
 app.use("/api/ai", AiChatRoute);
 app.use("/api/weight", weightRoute);

@@ -34,6 +34,7 @@ const pregnancyInfoSchema = new mongoose.Schema(
     dueDate: { type: Date, required: true },
     lastPeriod: { type: Date },
     startDate: { type: Date, default: Date.now },
+    deliveryDate: { type: Date, default: null },
   },
   { _id: false }
 );

@@ -72,6 +72,13 @@ const trimesterForWeek = (week) => {
   return "third";
 };
 
+function toInputDate(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function PregnancyDashboard() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
@@ -79,6 +86,11 @@ function PregnancyDashboard() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isVibeOpen, setIsVibeOpen] = useState(false);
   const [endingPregnancy, setEndingPregnancy] = useState(false);
+
+  const [showDeliveryForm, setShowDeliveryForm] = useState(false);
+  const [deliveryDateInput, setDeliveryDateInput] = useState(() => toInputDate(new Date()));
+  const [confirmingDelivery, setConfirmingDelivery] = useState(false);
+  const [deliveryError, setDeliveryError] = useState(null);
 
   const fetchUser = async () => {
     try {
@@ -105,13 +117,25 @@ function PregnancyDashboard() {
       const data = await res.json();
       setUser(data);
 
-      const dueDateStr = data?.pregnancyInfo?.dueDate;
-      if (dueDateStr) {
-        const dueDate = new Date(dueDateStr);
-        const daysPastDue = (Date.now() - dueDate.getTime()) / MS_PER_DAY;
-        if (daysPastDue >= POSTPARTUM_BUFFER_DAYS) {
-          navigate("/dashboard", { replace: true });
-          return;
+      // Postpartum handling is based ONLY on confirmed deliveryDate — never
+      // on dueDate. dueDate is an estimate and can't reliably tell us
+      // whether the baby has actually arrived.
+      const deliveryDateStr = data?.pregnancyInfo?.deliveryDate;
+      if (deliveryDateStr) {
+        const deliveryDate = new Date(deliveryDateStr);
+        const daysPastDelivery = (Date.now() - deliveryDate.getTime()) / MS_PER_DAY;
+        if (daysPastDelivery >= POSTPARTUM_BUFFER_DAYS) {
+          // Postpartum window is over — actually clear pregnancyInfo
+          // server-side instead of just redirecting and leaving the
+          // account in a stale, ambiguous state.
+          const clearRes = await fetch("http://localhost:5000/api/pregnancy-info", {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (clearRes.ok) {
+            navigate("/dashboard", { replace: true });
+            return;
+          }
         }
       }
     } catch (err) {
@@ -147,6 +171,41 @@ function PregnancyDashboard() {
     }
   };
 
+  const openDeliveryForm = () => {
+    setDeliveryDateInput(toInputDate(new Date()));
+    setDeliveryError(null);
+    setShowDeliveryForm(true);
+  };
+
+  const handleConfirmDelivery = async () => {
+    if (!deliveryDateInput) {
+      setDeliveryError("Please pick a date.");
+      return;
+    }
+    setConfirmingDelivery(true);
+    setDeliveryError(null);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("http://localhost:5000/api/pregnancy-info/delivered", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ deliveryDate: deliveryDateInput }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Couldn't save your delivery date.");
+
+      setUser(data);
+      setShowDeliveryForm(false);
+    } catch (err) {
+      setDeliveryError(err.message);
+    } finally {
+      setConfirmingDelivery(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#FDF6F3]">
@@ -156,6 +215,7 @@ function PregnancyDashboard() {
   }
 
   const dueDate = user?.pregnancyInfo?.dueDate ? new Date(user.pregnancyInfo.dueDate) : null;
+  const deliveryDate = user?.pregnancyInfo?.deliveryDate ? new Date(user.pregnancyInfo.deliveryDate) : null;
 
   if (!dueDate) {
     return (
@@ -192,6 +252,15 @@ function PregnancyDashboard() {
   const babySize = getBabySize(displayWeek);
 
   const daysUntilDue = Math.max(0, Math.ceil((dueDate.getTime() - today.getTime()) / MS_PER_DAY));
+  const daysPastDue = Math.floor((today.getTime() - dueDate.getTime()) / MS_PER_DAY);
+
+  // Show a gentle nudge once the due date has passed and delivery hasn't
+  // been confirmed yet — this replaces silently assuming delivery = due date.
+  const showDueDatePassedPrompt = !deliveryDate && daysPastDue > 0;
+
+  const daysSinceDelivery = deliveryDate
+    ? Math.floor((today.getTime() - deliveryDate.getTime()) / MS_PER_DAY)
+    : null;
 
   return (
     <div className="min-h-screen bg-[#FDF6F3] relative" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -206,42 +275,101 @@ function PregnancyDashboard() {
             className="inline-block text-xs font-semibold px-3 py-1 rounded-full mb-3"
             style={{ background: TRIMESTER[trimester].soft, color: TRIMESTER[trimester].color }}
           >
-            Week {displayWeek} of your pregnancy
+            {deliveryDate ? "Postpartum" : `Week ${displayWeek} of your pregnancy`}
           </span>
           <h1 className="fr-display text-3xl leading-tight" style={{ color: BRAND.ink }}>
             Hello{user?.name ? `, ${user.name.split(" ")[0]}` : ""}
           </h1>
-          <p className="text-sm mt-1" style={{ color: BRAND.muted }}>Here's your pregnancy overview</p>
-        </div>
-
-        <div
-          className="rounded-2xl p-6 mb-4 bg-white flex flex-col items-center"
-          style={{ border: `1px solid ${BRAND.border}` }}
-        >
-          <PregnancyRing daysElapsed={clampedDaysElapsed} trimester={trimester} />
-          <h2 className="fr-display text-3xl mt-4 mb-1 text-center" style={{ color: BRAND.ink }}>
-            Week {displayWeek}, day {dayIntoWeek}
-          </h2>
-          <p className="text-sm" style={{ color: BRAND.muted }}>{TRIMESTER[trimester].label}</p>
-          <p
-            className="text-xs mt-3 inline-block px-4 py-1.5 rounded-full"
-            style={{ background: TRIMESTER[trimester].soft, color: TRIMESTER[trimester].color }}
-          >
-            Due in {daysUntilDue} day{daysUntilDue === 1 ? "" : "s"} ·{" "}
-            {dueDate.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
+          <p className="text-sm mt-1" style={{ color: BRAND.muted }}>
+            {deliveryDate ? "Here's your postpartum overview" : "Here's your pregnancy overview"}
           </p>
         </div>
 
-        <div className="rounded-2xl p-6 mb-4" style={{ background: BRAND.pinkSoft, border: `1px solid ${BRAND.border}` }}>
-          <p className="text-xs mb-1" style={{ color: BRAND.pink, opacity: 0.85 }}>This week, your baby is about the size of</p>
-          <div className="flex items-center gap-4">
-            <span className="text-5xl">{babySize.emoji}</span>
-            <div>
-              <p className="fr-display text-lg capitalize" style={{ color: BRAND.ink }}>{babySize.thing}</p>
-              <p className="text-sm mt-1" style={{ color: BRAND.muted }}>{babySize.note}</p>
-            </div>
+        {deliveryDate ? (
+          <div
+            className="rounded-2xl p-6 mb-4 bg-white text-center"
+            style={{ border: `1px solid ${BRAND.border}` }}
+          >
+            <p className="text-4xl mb-3">🎉</p>
+            <h2 className="fr-display text-2xl mb-1" style={{ color: BRAND.ink }}>
+              Congratulations!
+            </h2>
+            <p className="text-sm" style={{ color: BRAND.muted }}>
+              Day {daysSinceDelivery} of your postpartum recovery
+            </p>
+            <p className="text-xs mt-3 inline-block px-4 py-1.5 rounded-full" style={{ background: BRAND.pinkSoft, color: BRAND.pink }}>
+              Born {deliveryDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}
+            </p>
           </div>
-        </div>
+        ) : (
+          <>
+            {showDueDatePassedPrompt && (
+              <div
+                className="rounded-2xl p-5 mb-4 flex items-start gap-3"
+                style={{ background: BRAND.pinkSoft, border: `1px solid ${BRAND.border}` }}
+              >
+                <span className="text-2xl">👶</span>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold" style={{ color: BRAND.ink }}>
+                    Your due date has passed — have you had your baby?
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: BRAND.muted }}>
+                    It's completely normal to go a little early or late. Let us know when your baby arrives so we can update your tracking.
+                  </p>
+                  <button
+                    onClick={openDeliveryForm}
+                    className="mt-3 text-xs font-semibold px-4 py-2 rounded-full text-white transition-colors"
+                    style={{ background: BRAND.pink }}
+                  >
+                    Yes, log delivery
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div
+              className="rounded-2xl p-6 mb-4 bg-white flex flex-col items-center"
+              style={{ border: `1px solid ${BRAND.border}` }}
+            >
+              <PregnancyRing daysElapsed={clampedDaysElapsed} trimester={trimester} />
+              <h2 className="fr-display text-3xl mt-4 mb-1 text-center" style={{ color: BRAND.ink }}>
+                Week {displayWeek}, day {dayIntoWeek}
+              </h2>
+              <p className="text-sm" style={{ color: BRAND.muted }}>{TRIMESTER[trimester].label}</p>
+              <p
+                className="text-xs mt-3 inline-block px-4 py-1.5 rounded-full"
+                style={{ background: TRIMESTER[trimester].soft, color: TRIMESTER[trimester].color }}
+              >
+                {daysPastDue > 0
+                  ? `${daysPastDue} day${daysPastDue === 1 ? "" : "s"} past due`
+                  : `Due in ${daysUntilDue} day${daysUntilDue === 1 ? "" : "s"}`}
+                {" · "}
+                {dueDate.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
+              </p>
+
+              {!showDueDatePassedPrompt && (
+                <button
+                  onClick={openDeliveryForm}
+                  className="mt-4 text-xs font-medium px-4 py-2 rounded-full transition-colors"
+                  style={{ background: BRAND.pinkSoft, color: BRAND.pink }}
+                >
+                  I had my baby 🎉
+                </button>
+              )}
+            </div>
+
+            <div className="rounded-2xl p-6 mb-4" style={{ background: BRAND.pinkSoft, border: `1px solid ${BRAND.border}` }}>
+              <p className="text-xs mb-1" style={{ color: BRAND.pink, opacity: 0.85 }}>This week, your baby is about the size of</p>
+              <div className="flex items-center gap-4">
+                <span className="text-5xl">{babySize.emoji}</span>
+                <div>
+                  <p className="fr-display text-lg capitalize" style={{ color: BRAND.ink }}>{babySize.thing}</p>
+                  <p className="text-sm mt-1" style={{ color: BRAND.muted }}>{babySize.note}</p>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
 
         <button
           onClick={() => navigate("/pregnancy-calendar")}
@@ -312,6 +440,63 @@ function PregnancyDashboard() {
           {endingPregnancy ? "Ending pregnancy tracking…" : "End pregnancy tracking & return to cycle tracking"}
         </button>
       </div>
+
+      {showDeliveryForm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center px-4"
+          style={{ background: "rgba(36, 18, 32, 0.35)" }}
+          onClick={() => !confirmingDelivery && setShowDeliveryForm(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl p-6 bg-white"
+            style={{ fontFamily: "'Inter', sans-serif" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-3xl mb-2">🎉</p>
+            <h2 className="fr-display text-xl mb-1" style={{ color: BRAND.ink }}>
+              Congratulations!
+            </h2>
+            <p className="text-sm mb-4" style={{ color: BRAND.muted }}>
+              When did your baby arrive?
+            </p>
+
+            <label className="block text-xs font-medium mb-1.5" style={{ color: BRAND.muted }}>
+              Delivery date
+            </label>
+            <input
+              type="date"
+              value={deliveryDateInput}
+              max={toInputDate(new Date())}
+              onChange={(e) => setDeliveryDateInput(e.target.value)}
+              className="w-full text-sm px-3 py-2.5 rounded-lg outline-none mb-3"
+              style={{ border: `1px solid ${BRAND.border}`, color: BRAND.ink }}
+            />
+
+            {deliveryError && (
+              <p className="text-xs mb-3" style={{ color: BRAND.pink }}>{deliveryError}</p>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                onClick={handleConfirmDelivery}
+                disabled={confirmingDelivery}
+                className="flex-1 text-sm font-medium py-2.5 rounded-lg transition-colors disabled:opacity-60 text-white"
+                style={{ background: BRAND.pink }}
+              >
+                {confirmingDelivery ? "Saving…" : "Confirm"}
+              </button>
+              <button
+                onClick={() => setShowDeliveryForm(false)}
+                disabled={confirmingDelivery}
+                className="px-4 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-60"
+                style={{ background: BRAND.pinkSoft, color: BRAND.muted }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
         <div className="flex items-center gap-2 group">
