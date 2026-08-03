@@ -1,9 +1,8 @@
 const express = require("express");
 const router = express.Router();
-const Status = require("../models/Status"); 
+const Status = require("../models/Status");
 const User = require("../models/User");
 const jwt = require("jsonwebtoken");
-
 
 function verifyToken(req) {
   const authHeader = req.headers.authorization;
@@ -22,7 +21,7 @@ function verifyToken(req) {
   }
 }
 
-
+// GET status feed
 router.get("/feed", async (req, res) => {
   try {
     const statuses = await Status.find().sort({ createdAt: -1 });
@@ -32,7 +31,7 @@ router.get("/feed", async (req, res) => {
   }
 });
 
-
+// POST new status
 router.post("/add", async (req, res) => {
   try {
     let authenticatedUserId = null;
@@ -40,7 +39,7 @@ router.post("/add", async (req, res) => {
       const decoded = verifyToken(req);
       authenticatedUserId = decoded.id || decoded._id;
     } catch (tokenErr) {
-      
+      // Optional fallback if token isn't strictly enforced on client
     }
 
     const { userId, userName, username, vibeBadge, statusText, content } = req.body;
@@ -55,7 +54,6 @@ router.post("/add", async (req, res) => {
       return res.status(400).json({ error: "User context identification is required" });
     }
 
-  
     const userProfile = await User.findById(targetUser);
     const activeDisplayName =
       (userProfile && (userProfile.name || userProfile.userName || userProfile.username)) ||
@@ -64,12 +62,12 @@ router.post("/add", async (req, res) => {
       "Friend";
 
     const newStatus = new Status({
-      user: targetUser,          
-      userName: activeDisplayName, // Dynamically set to real user name
-      content: finalContent.trim(), 
+      user: targetUser,
+      userName: activeDisplayName,
+      content: finalContent.trim(),
       vibeBadge: vibeBadge || { emoji: "✨", text: "Vibing" },
       likes: [],
-      comments: []
+      comments: [],
     });
 
     await newStatus.save();
@@ -80,17 +78,20 @@ router.post("/add", async (req, res) => {
   }
 });
 
+// POST toggle like (Corrected ObjectId string check)
 router.post("/:id/like", async (req, res) => {
   try {
     const decoded = verifyToken(req);
-    const targetUserId = decoded.id || decoded._id;
-    
+    const targetUserId = (decoded.id || decoded._id).toString();
+
     const post = await Status.findById(req.params.id);
     if (!post) return res.status(404).json({ error: "Status not found" });
 
-    const hasLiked = post.likes.includes(targetUserId);
+    // Compare string representations of ObjectIds
+    const hasLiked = post.likes.some((id) => id.toString() === targetUserId);
+
     if (hasLiked) {
-      post.likes = post.likes.filter((id) => id.toString() !== targetUserId.toString());
+      post.likes = post.likes.filter((id) => id.toString() !== targetUserId);
     } else {
       post.likes.push(targetUserId);
     }
@@ -102,7 +103,7 @@ router.post("/:id/like", async (req, res) => {
   }
 });
 
-
+// POST add comment
 router.post("/:id/comment", async (req, res) => {
   try {
     const decoded = verifyToken(req);
@@ -118,14 +119,15 @@ router.post("/:id/comment", async (req, res) => {
 
     const commenterProfile = await User.findById(targetUserId);
     const activeDisplayName =
-      (commenterProfile && (commenterProfile.name || commenterProfile.userName || commenterProfile.username)) ||
+      (commenterProfile &&
+        (commenterProfile.name || commenterProfile.userName || commenterProfile.username)) ||
       "Friend";
 
     const newComment = {
       user: targetUserId,
       userName: activeDisplayName,
       text: text.trim(),
-      createdAt: new Date()
+      createdAt: new Date(),
     };
 
     post.comments.push(newComment);
@@ -137,18 +139,18 @@ router.post("/:id/comment", async (req, res) => {
   }
 });
 
-
+// DELETE status
 router.delete("/:id", async (req, res) => {
   try {
     const decoded = verifyToken(req);
-    const targetUserId = decoded.id || decoded._id;
+    const targetUserId = (decoded.id || decoded._id).toString();
 
     const post = await Status.findById(req.params.id);
     if (!post) {
       return res.status(404).json({ error: "Status not found" });
     }
 
-    if (post.user.toString() !== targetUserId.toString()) {
+    if (post.user.toString() !== targetUserId) {
       return res.status(403).json({ error: "Unauthorized to delete this status" });
     }
 
